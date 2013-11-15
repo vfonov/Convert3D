@@ -1,6 +1,6 @@
 #include "WarpLabelImage.h"
 #include "itkWarpImageFilter.h"
-#include "itkImageToVectorImageFilter.h"
+#include "itkComposeImageFilter.h"
 #include "CreateInterpolator.h"
 #include "ThresholdImage.h"
 #include "SmoothImage.h"

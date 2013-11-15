@@ -65,6 +65,9 @@ ReadImage<TPixel, VDim>
 
     // Split the vector image into component images
     typename VectorImageType::Pointer vec = reader->GetOutput();
+
+    c->m_Metadata=vec->GetMetaDataDictionary();
+
     size_t ncomp = vec->GetVectorLength();
     for(size_t i = 0; i < ncomp; i++)
       {
@@ -97,6 +100,7 @@ ReadImage<TPixel, VDim>
       }
   
     ImagePointer image = reader->GetOutput();
+    c->m_Metadata=image->GetMetaDataDictionary();
     c->m_ImageStack.push_back(image);
     }  
 }

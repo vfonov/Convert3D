@@ -72,6 +72,7 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
+#include <time.h>
 
 // Support for regular expressions via KWSYS in ITK
 #include <itksys/RegularExpression.hxx>
@@ -120,6 +121,19 @@ ImageConverter<TPixel,VDim>
   // Create an interpolator
   m_Interpolation = "linear";
   CreateInterpolator<TPixel, VDim>(this).CreateLinear();
+  
+  // set default parameters of N3/N4 algorithm
+  n4_spline_distance.resize(3,100.0);
+  n4_shrink_factor=4;
+  n4_spline_order=3;
+  n4_histogram_bins= 200;
+  n4_fwhm=0.15;
+  n4_convergence_threshold=0.001;
+  n4_weiner_noise=0.01;
+  n4_max_iterations=100;
+  n4_optimal_scaling=true;
+  n4_output_field=false;
+  
 }
 
 template<class TPixel, unsigned int VDim>
@@ -135,7 +149,7 @@ ImageConverter<TPixel, VDim>
   out << "    -antialias, -alias" << endl;
   out << "    -as, -set" << endl;
   out << "    -background" << endl;
-  out << "    -biascorr" << endl;
+  out << "    -n3, -biascorr" << endl;
   out << "    -binarize" << endl;
   out << "    -centroid" << endl;
   out << "    -clear" << endl;
@@ -182,6 +196,19 @@ ImageConverter<TPixel, VDim>
   out << "    -mixture, -mixture-model" << endl;
   out << "    -multiply, -times" << endl;
   out << "    -n4, -n4-bias-correction" << endl;
+
+  out << "    -n4_spline_distance <d1[,d2,d3]>mm" << endl;
+  out << "    -n4_shrink_factor <n>" << endl;
+  out << "    -n4_spline_order <n>" << endl;
+  out << "    -n4_histogram_bins <n>" << endl;
+  out << "    -n4_fwhm <f>" << endl;
+  out << "    -n4_convergence_threshold <f>" << endl;
+  out << "    -n4_weiner_noise <f>" << endl;
+  out << "    -n4_max_iterations <n>" << endl;
+  out << "    -n4_optimal_scaling <0/1>" << endl;
+  out << "    -n4_output_field <0/1>" << endl;
+  out << "    -n4_use_mask <0/1>" << endl;
+
   out << "    -ncc, -normalized-cross-correlation" << endl;
   out << "    -nmi, -normalized-mutual-info" << endl;
   out << "    -normpdf" << endl;
@@ -320,7 +347,7 @@ ImageConverter<TPixel, VDim>
     return 1;
     }
 
-  else if (cmd == "-biascorr")
+  else if (cmd == "-n3" || cmd == "-biascorr")
     {
     BiasFieldCorrection<TPixel, VDim> adapter(this);
     adapter();
@@ -333,6 +360,94 @@ ImageConverter<TPixel, VDim>
     adapter();
     return 0;
     }
+ else if(cmd == "-n4_spline_distance")
+  {
+    char *tmp=strdup(argv[1]);
+    
+    //n4_spline_distance=atof(argv[1]);
+    n4_spline_distance.clear();
+    char *pch = strtok (tmp," ,;");
+    *verbose << "N4 spline distance ";
+    while (pch != NULL)
+    {
+      n4_spline_distance.push_back(atof(pch));
+      *verbose << pch<<" ";
+      pch = strtok (NULL, " ,;");
+    }
+    *verbose << std::endl;
+    free(tmp);
+    return 1;
+  }
+  
+ else if(cmd == "-n4_shrink_factor")
+  {
+    n4_shrink_factor=atoi(argv[1]);
+    *verbose << "N4 shrink factor " << n4_shrink_factor << endl;
+    return 1;
+  }
+
+ else if(cmd == "-n4_spline_order")
+  {
+    n4_spline_order=atoi(argv[1]);
+    *verbose << "N4 spline order " << n4_spline_order << endl;
+    return 1;
+  }
+
+ else if(cmd == "-n4_histogram_bins")
+  {
+    n4_histogram_bins=atoi(argv[1]);
+    *verbose << "N4 histogram bins " << n4_histogram_bins << endl;
+    return 1;
+  }
+
+ else if(cmd == "-n4_fwhm")
+  {
+    n4_fwhm=atof(argv[1]);
+    *verbose << "N4 fwhm " << n4_fwhm << endl;
+    return 1;
+  }
+
+ else if(cmd == "-n4_convergence_threshold")
+  {
+    n4_convergence_threshold=atof(argv[1]);
+    *verbose << "N4 convergence threshold " << n4_convergence_threshold << endl;
+    return 1;
+  }
+
+ else if(cmd == "-n4_weiner_noise")
+  {
+    n4_weiner_noise=atof(argv[1]);
+    *verbose << "N4 weiner noise " << n4_weiner_noise << endl;
+    return 1;
+  }
+
+ else if(cmd == "-n4_max_iterations")
+  {
+    n4_max_iterations=atoi(argv[1]);
+    *verbose << "N4 max iterations " << n4_max_iterations << endl;
+    return 1;
+  }
+
+ else if(cmd == "-n4_optimal_scaling")
+  {
+    n4_optimal_scaling=atoi(argv[1]);
+    *verbose << "N4 optimal scaling " << n4_optimal_scaling << endl;
+    return 1;
+  }
+
+ else if(cmd == "-n4_output_field")
+  {
+    n4_output_field=atoi(argv[1]);
+    *verbose << "N4 output field " << n4_output_field << endl;
+    return 1;
+  }
+
+  else if(cmd == "-n4_use_mask")
+  {
+    n4_use_mask=atoi(argv[1]);
+    *verbose << "N4 use mask " << n4_use_mask << endl;
+    return 1;
+  }
 
   // f(x) = (x == xBackground) ? 0 : 1
   else if (cmd == "-binarize")
@@ -1572,7 +1687,30 @@ ImageConverter<TPixel, VDim>
     cerr << "    " << argv[0] << " -h" << endl;
     return -1;
     }
+  
+  //create timestamp describing image processing 
+  std::string timestamp;
+  
+  char cur_time[256];
+  time_t t;
+  struct tm *tmp;
 
+  t = time(NULL);
+  tmp = localtime(&t);
+  
+  strftime(cur_time, sizeof(cur_time), "%a %b %d %T %Y>>>", tmp);
+  /* Get the time, overwriting newline */
+  timestamp=cur_time;
+  
+  /* Copy the program name and arguments */
+  for (int i=0; i<argc; i++) {
+    timestamp+=argv[i];
+    timestamp+=" ";
+  }
+  timestamp+="\n";
+  
+  this->m_History=timestamp;
+  
   // Try processing command line
   try
     {

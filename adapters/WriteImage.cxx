@@ -26,7 +26,16 @@ WriteImage<TPixel, VDim>
   output->SetSpacing(input->GetSpacing());
   output->SetOrigin(input->GetOrigin());
   output->SetDirection(input->GetDirection());
-  output->SetMetaDataDictionary(input->GetMetaDataDictionary());
+  output->SetMetaDataDictionary(c->m_Metadata);//some filters don't preserve metadata :(
+
+  // append history of image processing to metadata
+  if(!c->m_History.empty()) 
+  {
+    std::string old_history;
+    itk::ExposeMetaData<std::string>( output->GetMetaDataDictionary() , "history",old_history);
+    old_history+=c->m_History;
+    itk::EncapsulateMetaData( output->GetMetaDataDictionary(),"history",old_history);
+  }
   output->Allocate();
 
   // Describe what we are doing

@@ -5,6 +5,7 @@
 #include "itkImageRegionIteratorWithIndex.h"
 #include "itkInterpolateImageFunction.h"
 #include "ConvertException.h"
+#include "itkMetaDataDictionary.h"
 
 #include <iostream>
 #include <cctype>
@@ -116,7 +117,7 @@ private:
 
   // Label set for split/merge
   LabelSet m_SplitLabelSet;
-  
+
 public:
 
   // Stack of images from the command line
@@ -149,6 +150,34 @@ public:
   // Level set algorithm parameters
   double m_LevSetCurvature, m_LevSetAdvection;
 
+  // N3 and N4 filter parameters
+  // distance (in mm) of the mesh resolution at the base level
+  std::vector<double>  n4_spline_distance ; 
+  // N3/N4 shrink factor
+  int     n4_shrink_factor;
+  // N3/N4 spline order
+  int     n4_spline_order;
+  // N3/N4 number of histogram bins
+  int     n4_histogram_bins;
+  // N3/N4 histogram blurring FWHM
+  double  n4_fwhm;
+  // N3/N4 convergence threshold
+  double  n4_convergence_threshold;
+  // N3/N4 weiner noise estimate for regularization
+  double  n4_weiner_noise;
+  // N3/N4 max number of itearation
+  int     n4_max_iterations;
+  // N4 use optimal sclaling
+  bool    n4_optimal_scaling;
+  // N3/N4 output bias field
+  bool    n4_output_field;
+  // N3/N4 use mask to estimate bias
+  bool    n4_use_mask;
+  // image metadata to be preserved
+  itk::MetaDataDictionary m_Metadata;
+  // command line history info
+  std::string m_History;
+  
   // How % is handled for intensity specs
   enum PercentIntensityMode { PIM_QUANTILE, PIM_FGQUANTILE, PIM_RANGE };
   PercentIntensityMode m_PercentIntensityMode;

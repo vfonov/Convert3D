@@ -1,11 +1,13 @@
 #include "BiasFieldCorrectionN4.h"
-
 #include "itkBSplineControlPointImageFilter.h"
+//#include "itkBSplineControlPointImageFilter.h"
 #include "itkConstantPadImageFilter.h"
 #include "itkDivideImageFilter.h"
 #include "itkExpImageFilter.h"
 #include "itkExtractImageFilter.h"
-#include "itkN4MRIBiasFieldCorrectionImageFilter.h"
+//#include "itkN4MRIBiasFieldCorrectionImageFilter.h"
+
+#include "itkN4BiasFieldCorrectionImageFilter.h"
 #include "itkOtsuThresholdImageFilter.h"
 #include "itkShrinkImageFilter.h"
 
@@ -14,18 +16,66 @@ void
 BiasFieldCorrectionN4<TPixel, VDim>
 ::operator() ()
 {
+  // distance (in mm) of the mesh resolution at the base level
+  std::vector<double>  n4_spline_distance = c->n4_spline_distance;
+  int     n4_shrink_factor=c->n4_shrink_factor;
+  int     n4_spline_order=c->n4_spline_order;
+  int     n4_histogram_bins= c->n4_histogram_bins;
+  double  n4_fwhm=c->n4_fwhm;
+  double  n4_convergence_threshold=c->n4_convergence_threshold;
+  double  n4_weiner_noise=c->n4_weiner_noise;
+  int     n4_max_iterations=c->n4_max_iterations;
+  bool    n4_optimal_scaling=c->n4_optimal_scaling;
+  bool    n4_output_field=c->n4_output_field;
+  bool    n4_use_mask=c->n4_use_mask;
+  
+  ImagePointer mri;
+  ImagePointer mask;
+  
+  // Check input availability
+  if(n4_use_mask)
+  {
+    if(c->m_ImageStack.size() < 2)
+      throw ConvertException("No image and mask on stack");
 
-  // Get image from stack
-  ImagePointer mri = c->m_ImageStack.back();
-  c->m_ImageStack.pop_back();
+    // Get image from stack
+    mri = c->m_ImageStack.back();
+    c->m_ImageStack.pop_back();
+    
+    mask = c->m_ImageStack.back();
+    c->m_ImageStack.pop_back();
+    
+  } else {
+    if(c->m_ImageStack.size() < 1)
+      throw ConvertException("No images on stack");
 
+    // Get image from stack
+    mri = c->m_ImageStack.back();
+    c->m_ImageStack.pop_back();
+  }
+  
   // Bias filter
-  typedef itk::N4MRIBiasFieldCorrectionImageFilter<ImageType, ImageType, ImageType> CorrecterType;
+  typedef itk::N4BiasFieldCorrectionImageFilter<ImageType, ImageType, ImageType> CorrecterType;
   typename CorrecterType::Pointer correcter = CorrecterType::New();
 
-  // distance (in mm) of the mesh resolution at the base level
-  float splineDistance = 100;
-
+  
+  *c->verbose << "N4 BiasFieldCorrection #" << c->m_ImageStack.size() << endl;
+  *c->verbose << "  Shrink factor: " << n4_shrink_factor << endl;
+  
+  *c->verbose << "  Spline distance: ";
+  for(int i=0;i<n4_spline_distance.size();i++) 
+    *c->verbose << n4_spline_distance[i]<<" ";
+  *c->verbose << std::endl;
+  
+  *c->verbose << "  Number of histogram bins: "<< n4_histogram_bins<<endl;
+  *c->verbose << "  Weiner Filter noise: "<< n4_weiner_noise<<endl;
+  *c->verbose << "  Bias FWHM: "<< n4_fwhm<<endl;
+  *c->verbose << "  Max Number of Iterations: "<< n4_max_iterations<<endl;
+  *c->verbose << "  Convergence Threshold: "<< n4_convergence_threshold<<endl;
+  *c->verbose << "  Spline Order: "<< n4_spline_order<<endl;
+  *c->verbose << "  use mask: "<< n4_use_mask<<endl;
+  
+  
   typename CorrecterType::ArrayType numberOfControlPoints;
 
   typename ImageType::IndexType inputImageIndex =
@@ -38,21 +88,26 @@ BiasFieldCorrectionN4<TPixel, VDim>
   unsigned long lowerBound[VDim];
   unsigned long upperBound[VDim];
 
+  // if spline distance doesn't have enough elements, just keep using the last one
+  if(n4_spline_distance.size()<VDim)
+    n4_spline_distance.resize(VDim,n4_spline_distance.back()); 
+    
   for( unsigned int d = 0; d < VDim; d++ )
-    {
+  {
     float domain = static_cast<float>( mri->
       GetLargestPossibleRegion().GetSize()[d] - 1 ) * mri->GetSpacing()[d];
-    unsigned int numberOfSpans = static_cast<unsigned int>(
-      vcl_ceil( domain / splineDistance ) );
+      
+    unsigned int numberOfSpans = static_cast<unsigned int>( vcl_ceil( domain / n4_spline_distance[d] ) );
+      
     unsigned long extraPadding = static_cast<unsigned long>( ( numberOfSpans *
-      splineDistance - domain ) / mri->GetSpacing()[d] + 0.5 );
+      n4_spline_distance[d] - domain ) / mri->GetSpacing()[d] + 0.5 );
+      
     lowerBound[d] = static_cast<unsigned long>( 0.5 * extraPadding );
     upperBound[d] = extraPadding - lowerBound[d];
-    newOrigin[d] -= ( static_cast<float>( lowerBound[d] ) *
-      mri->GetSpacing()[d] );
+    newOrigin[d] -= ( static_cast<float>( lowerBound[d] ) * mri->GetSpacing()[d] );
 
     numberOfControlPoints[d] = numberOfSpans + correcter->GetSplineOrder();
-    }
+  }
   correcter->SetNumberOfControlPoints( numberOfControlPoints );
 
   typedef itk::ConstantPadImageFilter<ImageType, ImageType> PadderType;
@@ -67,22 +122,26 @@ BiasFieldCorrectionN4<TPixel, VDim>
   typedef itk::ShrinkImageFilter<ImageType, ImageType> ShrinkerType;
   typename ShrinkerType::Pointer shrinker = ShrinkerType::New();
   shrinker->SetInput( padder->GetOutput() );
-  shrinker->SetShrinkFactors( 4 );
+  shrinker->SetShrinkFactors( n4_shrink_factor );
   shrinker->Update();
 
-  // Compute mask using Otsu threshold
   typedef itk::OtsuThresholdImageFilter<ImageType, ImageType> ThresholderType;
   typename ThresholderType::Pointer otsu = ThresholderType::New();
-  otsu->SetInput( padder->GetOutput() );
-  otsu->SetNumberOfHistogramBins( 200 );
-  otsu->SetInsideValue( 0 );
-  otsu->SetOutsideValue( 1 );
-  otsu->Update();
-  ImagePointer mask = otsu->GetOutput();
-
+  if(!n4_use_mask)
+  {
+    // Compute mask using Otsu threshold
+    otsu->SetInput( mri );
+    otsu->SetNumberOfHistogramBins( 200 );
+    otsu->SetInsideValue( 0 );
+    otsu->SetOutsideValue( 1 );
+    otsu->Update();
+    mask = otsu->GetOutput();
+    *c->verbose << "  Otsu threshold: "<<otsu->GetThreshold()<<endl;
+  }
+  
   typedef itk::ConstantPadImageFilter<ImageType, ImageType> MaskPadderType;
   typename MaskPadderType::Pointer maskPadder = MaskPadderType::New();
-  maskPadder->SetInput( otsu->GetOutput() );
+  maskPadder->SetInput( mask );
   maskPadder->SetPadLowerBound( lowerBound );
   maskPadder->SetPadUpperBound( upperBound );
   maskPadder->SetConstant( 0 );
@@ -91,19 +150,18 @@ BiasFieldCorrectionN4<TPixel, VDim>
   // Shrink the mask
   typename ShrinkerType::Pointer maskshrinker = ShrinkerType::New();
   maskshrinker->SetInput( maskPadder->GetOutput() );
-  maskshrinker->SetShrinkFactors( 4 );
+  maskshrinker->SetShrinkFactors( n4_shrink_factor );
   maskshrinker->Update();
 
   correcter->SetInput( shrinker->GetOutput() );
   correcter->SetMaskImage( maskshrinker->GetOutput() );
 
   // These parameters are pretty standard
-  correcter->SetSplineOrder( 3 );
-  correcter->SetNumberOfHistogramBins( 200 );
-  correcter->SetBiasFieldFullWidthAtHalfMaximum( 0.15 );
-  correcter->SetConvergenceThreshold( 0.001 );
-  correcter->SetWeinerFilterNoise( 0.01 );
-  correcter->SetBiasFieldFullWidthAtHalfMaximum( 0.15 );
+  correcter->SetSplineOrder( n4_spline_order );
+  correcter->SetNumberOfHistogramBins( n4_histogram_bins );
+  correcter->SetBiasFieldFullWidthAtHalfMaximum( n4_fwhm );
+  correcter->SetConvergenceThreshold( n4_convergence_threshold );
+  correcter->SetWienerFilterNoise( n4_weiner_noise );
 
   // You will probably want to have an option for the maximum number of
   //  iterations at each level, the shrink factor, and the spline distance.
@@ -168,7 +226,7 @@ BiasFieldCorrectionN4<TPixel, VDim>
   divider->SetInput1( mri );
   divider->SetInput2( expFilter->GetOutput() );
   divider->Update();
-
+  
   typename ImageType::RegionType inputRegion;
   inputRegion.SetIndex( inputImageIndex );
   inputRegion.SetSize( inputImageSize );
@@ -183,10 +241,13 @@ BiasFieldCorrectionN4<TPixel, VDim>
   biasFieldCropper->SetInput( expFilter->GetOutput() );
   biasFieldCropper->SetExtractionRegion( inputRegion );
   biasFieldCropper->Update();
-
-  // Update
-  c->m_ImageStack.push_back( cropper->GetOutput() );
-//   c->m_ImageStack.push_back( biasFieldCropper->GetOutput() );
+  
+  if( n4_output_field )
+  {
+    c->m_ImageStack.push_back( biasFieldCropper->GetOutput() );
+  } else {
+    c->m_ImageStack.push_back( cropper->GetOutput() );
+  }
 }
 
 // Invocations
