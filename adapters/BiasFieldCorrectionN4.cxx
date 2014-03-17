@@ -41,10 +41,10 @@ BiasFieldCorrectionN4<TPixel, VDim>
     // Get image from stack
     mri = c->m_ImageStack.back();
     c->m_ImageStack.pop_back();
-    
+
     mask = c->m_ImageStack.back();
     c->m_ImageStack.pop_back();
-    
+
   } else {
     if(c->m_ImageStack.size() < 1)
       throw ConvertException("No images on stack");
@@ -58,15 +58,15 @@ BiasFieldCorrectionN4<TPixel, VDim>
   typedef itk::N4BiasFieldCorrectionImageFilter<ImageType, ImageType, ImageType> CorrecterType;
   typename CorrecterType::Pointer correcter = CorrecterType::New();
 
-  
   *c->verbose << "N4 BiasFieldCorrection #" << c->m_ImageStack.size() << endl;
   *c->verbose << "  Shrink factor: " << n4_shrink_factor << endl;
-  
+
   *c->verbose << "  Spline distance: ";
+
   for(int i=0;i<n4_spline_distance.size();i++) 
     *c->verbose << n4_spline_distance[i]<<" ";
   *c->verbose << std::endl;
-  
+
   *c->verbose << "  Number of histogram bins: "<< n4_histogram_bins<<endl;
   *c->verbose << "  Weiner Filter noise: "<< n4_weiner_noise<<endl;
   *c->verbose << "  Bias FWHM: "<< n4_fwhm<<endl;
@@ -74,8 +74,8 @@ BiasFieldCorrectionN4<TPixel, VDim>
   *c->verbose << "  Convergence Threshold: "<< n4_convergence_threshold<<endl;
   *c->verbose << "  Spline Order: "<< n4_spline_order<<endl;
   *c->verbose << "  use mask: "<< n4_use_mask<<endl;
-  
-  
+
+
   typename CorrecterType::ArrayType numberOfControlPoints;
 
   typename ImageType::IndexType inputImageIndex =
@@ -91,17 +91,17 @@ BiasFieldCorrectionN4<TPixel, VDim>
   // if spline distance doesn't have enough elements, just keep using the last one
   if(n4_spline_distance.size()<VDim)
     n4_spline_distance.resize(VDim,n4_spline_distance.back()); 
-    
+
   for( unsigned int d = 0; d < VDim; d++ )
   {
     float domain = static_cast<float>( mri->
       GetLargestPossibleRegion().GetSize()[d] - 1 ) * mri->GetSpacing()[d];
-      
+
     unsigned int numberOfSpans = static_cast<unsigned int>( vcl_ceil( domain / n4_spline_distance[d] ) );
-      
+
     unsigned long extraPadding = static_cast<unsigned long>( ( numberOfSpans *
       n4_spline_distance[d] - domain ) / mri->GetSpacing()[d] + 0.5 );
-      
+
     lowerBound[d] = static_cast<unsigned long>( 0.5 * extraPadding );
     upperBound[d] = extraPadding - lowerBound[d];
     newOrigin[d] -= ( static_cast<float>( lowerBound[d] ) * mri->GetSpacing()[d] );
@@ -127,7 +127,8 @@ BiasFieldCorrectionN4<TPixel, VDim>
 
   typedef itk::OtsuThresholdImageFilter<ImageType, ImageType> ThresholderType;
   typename ThresholderType::Pointer otsu = ThresholderType::New();
-  if(!n4_use_mask)
+
+  if( !n4_use_mask )
   {
     // Compute mask using Otsu threshold
     otsu->SetInput( mri );
@@ -138,9 +139,10 @@ BiasFieldCorrectionN4<TPixel, VDim>
     mask = otsu->GetOutput();
     *c->verbose << "  Otsu threshold: "<<otsu->GetThreshold()<<endl;
   }
-  
+
   typedef itk::ConstantPadImageFilter<ImageType, ImageType> MaskPadderType;
   typename MaskPadderType::Pointer maskPadder = MaskPadderType::New();
+
   maskPadder->SetInput( mask );
   maskPadder->SetPadLowerBound( lowerBound );
   maskPadder->SetPadUpperBound( upperBound );
@@ -157,7 +159,7 @@ BiasFieldCorrectionN4<TPixel, VDim>
   correcter->SetMaskImage( maskshrinker->GetOutput() );
 
   // These parameters are pretty standard
-  correcter->SetSplineOrder( n4_spline_order );
+  correcter->SetSplineOrder(  n4_spline_order );
   correcter->SetNumberOfHistogramBins( n4_histogram_bins );
   correcter->SetBiasFieldFullWidthAtHalfMaximum( n4_fwhm );
   correcter->SetConvergenceThreshold( n4_convergence_threshold );
@@ -167,18 +169,19 @@ BiasFieldCorrectionN4<TPixel, VDim>
   //  iterations at each level, the shrink factor, and the spline distance.
   typename CorrecterType::ArrayType numberOfFittingLevels;
   numberOfFittingLevels.Fill( 3 );
-		correcter->SetNumberOfFittingLevels( numberOfFittingLevels );
+  correcter->SetNumberOfFittingLevels( numberOfFittingLevels );
   typename CorrecterType::VariableSizeArrayType maximumNumberOfIterations;
   maximumNumberOfIterations.SetSize( 3 );
-  maximumNumberOfIterations[0] = 100;
-  maximumNumberOfIterations[1] = 50;
-  maximumNumberOfIterations[2] = 50;
+  maximumNumberOfIterations[0] = n4_max_iterations;
+  maximumNumberOfIterations[1] = n4_max_iterations;
+  maximumNumberOfIterations[2] = n4_max_iterations;
+
   correcter->SetMaximumNumberOfIterations( maximumNumberOfIterations );
 
   // Progress meter
-  // typedef CommandIterationUpdate<CorrecterType> CommandType;
-  // typename CommandType::Pointer observer = CommandType::New();
-  // correcter->AddObserver( itk::IterationEvent(), observer );
+/*  typedef  itk::CommandIterationUpdate<CorrecterType> CommandType;
+  typename CommandType::Pointer observer = CommandType::New();
+  correcter->AddObserver( itk::IterationEvent(), observer );*/
   correcter->Update();
 
   /**
@@ -200,17 +203,19 @@ BiasFieldCorrectionN4<TPixel, VDim>
   bspliner->Update();
 
   typename ImageType::Pointer logField = ImageType::New();
-  logField->SetOrigin( bspliner->GetOutput()->GetOrigin() );
-  logField->SetSpacing( bspliner->GetOutput()->GetSpacing() );
-  logField->SetRegions( bspliner->GetOutput()->GetLargestPossibleRegion().GetSize() );
+  logField->SetOrigin(    bspliner->GetOutput()->GetOrigin() );
+  logField->SetSpacing(   bspliner->GetOutput()->GetSpacing() );
+  logField->SetRegions(   bspliner->GetOutput()->GetLargestPossibleRegion().GetSize() );
   logField->SetDirection( bspliner->GetOutput()->GetDirection() );
   logField->Allocate();
 
   itk::ImageRegionIterator<typename CorrecterType::ScalarImageType> ItB(
     bspliner->GetOutput(),
     bspliner->GetOutput()->GetLargestPossibleRegion() );
+
   itk::ImageRegionIterator<ImageType> ItF( logField,
     logField->GetLargestPossibleRegion() );
+
   for( ItB.GoToBegin(), ItF.GoToBegin(); !ItB.IsAtEnd(); ++ItB, ++ItF )
     {
     ItF.Set( ItB.Get()[0] );
@@ -226,10 +231,10 @@ BiasFieldCorrectionN4<TPixel, VDim>
   divider->SetInput1( mri );
   divider->SetInput2( expFilter->GetOutput() );
   divider->Update();
-  
+
   typename ImageType::RegionType inputRegion;
   inputRegion.SetIndex( inputImageIndex );
-  inputRegion.SetSize( inputImageSize );
+  inputRegion.SetSize(  inputImageSize );
 
   typedef itk::ExtractImageFilter<ImageType, ImageType> CropperType;
   typename CropperType::Pointer cropper = CropperType::New();
