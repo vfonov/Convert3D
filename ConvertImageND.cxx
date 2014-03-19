@@ -6,6 +6,7 @@
 #include "ApplyMetric.h"
 #include "BiasFieldCorrection.h"
 #include "BiasFieldCorrectionN4.h"
+#include "BinaryHoleFill.h"
 #include "BinaryImageCentroid.h"
 #include "BinaryMathOperation.h"
 #include "ClipImageIntensity.h"
@@ -33,6 +34,7 @@
 #include "MRFVote.h"
 #include "MultiplyImages.h"
 #include "NormalizedCrossCorrelation.h"
+#include "NormalizeLocalWindow.h"
 #include "OverlayLabelImage.h"
 #include "PadImage.h"
 #include "PeronaMalik.h"
@@ -173,6 +175,7 @@ ImageConverter<TPixel, VDim>
   out << "    -foreach" << endl;
   out << "    -glm" << endl;
   out << "    -histmatch, -histogram-match" << endl;
+  out << "    -holefill, -hf" << endl;
   out << "    -info" << endl;
   out << "    -info-full" << endl;
   out << "    -insert, -ins" << endl;
@@ -211,6 +214,7 @@ ImageConverter<TPixel, VDim>
 
   out << "    -ncc, -normalized-cross-correlation" << endl;
   out << "    -nmi, -normalized-mutual-info" << endl;
+  out << "    -nlw, -normwin, -normalize-local-window" << endl;
   out << "    -normpdf" << endl;
   out << "    -noround" << endl;
   out << "    -nospm" << endl;
@@ -621,6 +625,16 @@ ImageConverter<TPixel, VDim>
     return 0;
     }
 
+  else if(cmd == "-hf" || cmd == "-holefill")
+    {
+    double foreground = atof(argv[1]);
+    bool full_conn = atoi(argv[2]);
+
+    BinaryHoleFill<TPixel, VDim> adapter(this);
+    adapter(foreground, full_conn);
+
+    return 2;
+    }
 
   else if (cmd == "-histmatch" || cmd == "-histogram-match")
     {
@@ -954,6 +968,14 @@ ImageConverter<TPixel, VDim>
     m_MultiComponentSplit = false; return 0;
     }
 
+  else if (cmd == "-nlw" || cmd == "-normwin" || cmd == "-normalize-local-window")
+    {
+    NormalizeLocalWindow<TPixel, VDim> adapter(this);
+    SizeType radius = ReadSizeVector(argv[1]);
+    adapter(radius);
+    return 1;
+    }
+
   else if (cmd == "-normpdf")
     {
     // Compute normal PDF of intensity values given sigma and mu
@@ -979,7 +1001,8 @@ ImageConverter<TPixel, VDim>
 
     // Scale by factor
     ScaleShiftImage<TPixel, VDim> scale3(this);
-	scale3(1.0 / sqrt(2 * vnl_math::pi * s * s), 0.0);
+    scale3(1.0 / sqrt(2 * vnl_math::pi * s * s), 0.0);
+    return 2;
     }
 
   else if (cmd == "-noround")
