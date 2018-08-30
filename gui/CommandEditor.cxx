@@ -1,11 +1,44 @@
+/*=========================================================================
+
+  Program:   C3D: Command-line companion tool to ITK-SNAP
+  Module:    CommandEditor.cxx
+  Language:  C++
+  Website:   itksnap.org/c3d
+  Copyright (c) 2014 Paul A. Yushkevich
+  
+  This file is part of C3D, a command-line companion tool to ITK-SNAP
+
+  C3D is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+ 
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=========================================================================*/
+
 #include "CommandEditor.h"
 #include <QCompleter>
 #include <QAbstractItemView>
 #include <QKeyEvent>
 #include <QScrollBar>
 #include <QDir>
+#include <QUrl>
 #include <QSettings>
 #include <QToolTip>
+#include <QDebug>
+#include <QMimeData>
+#include <QMouseEvent>
+#include <QDateTime>
+#include <QFontMetrics>
+#include "Documentation.h"
+#include <sstream>
 
 CommandEditor::CommandEditor(QWidget *parent):
   QTextEdit(parent)
@@ -60,11 +93,42 @@ QCompleter *CommandEditor::commandCompleter() const
   return m_commandCompleter;
 }
 
-void CommandEditor::setCommandList(const QStringList &cl)
+void CommandEditor::setDocumentation(Documentation *doc)
 {
-  m_CommandList = cl;
+  m_Documentation = doc;
 }
 
+
+QString splitTooltip(QString text, int width) 
+{ 
+    QFontMetrics fm(QToolTip::font()); 
+    QString result; 
+
+    for (;;) { 
+        int i = 0; 
+        while (i < text.length()) { 
+            if (fm.width(text.left(++i + 1)) > width) { 
+                int j = text.lastIndexOf(' ', i); 
+                if (j > 0) 
+                    i = j; 
+                result += text.left(i); 
+                result += '\n'; 
+                text = text.mid(i+1); 
+                break; 
+            } 
+            else if(text[i] == '\n')
+              {
+              result += text.left(i+1);
+              text = text.mid(i+1);
+              }
+        } 
+        if (i >= text.length()) 
+            break; 
+    } 
+    return result + text; 
+} 
+
+#include <iostream>
 bool CommandEditor::event(QEvent *e)
 {
   if (e->type() == QEvent::ToolTip)
@@ -73,12 +137,68 @@ bool CommandEditor::event(QEvent *e)
     QTextCursor tc = this->cursorForPosition(helpEvent->pos());
     QString fn = this->filenameUnderCursor(tc);
     QString help = QString("future help for %1").arg(fn);
+
+    // Get the c++ string
+    std::string fn_std = fn.toStdString();
+
+    // Special handling for real files
+    QFileInfo fi(QDir(QSettings().value("working_dir").toString()), fn);
+    if(fi.exists() && fi.isReadable())
+      {
+      help=QString(
+        "<html><b>File: </b>%2<br>"
+        "<b>Directory: </b>%1<br>"
+        "<b>Last Modified:  </b>%3<br><br><br>"
+        "<i>Double click to open in a 3D viewer</i></html>")
+          .arg(fi.absolutePath())
+          .arg(fi.fileName())
+          .arg(fi.lastModified().toLocalTime().toString());
+      }
+
+    // Special handling for c3d commands
+    else if(m_Documentation->GetAllCommands().find(fn_std)
+      != m_Documentation->GetAllCommands().end())
+      {
+      std::ostringstream oss;
+      std::string nodash = fn_std.substr(1);
+      if(m_Documentation->PrintCommandHelp(oss, nodash.c_str()))
+        {
+        help = splitTooltip(QString::fromStdString(oss.str()), 600);
+        }
+      }
+
     QToolTip::showText(helpEvent->globalPos(), help);
     return true;
     }
 
   else
     return QTextEdit::event(e);
+}
+
+bool CommandEditor::canInsertFromMimeData(const QMimeData *source) const
+{
+  if(source->hasUrls())
+    return true;
+  else return QTextEdit::canInsertFromMimeData(source);
+}
+
+void CommandEditor::insertFromMimeData(const QMimeData *source)
+{
+  if(source->hasUrls())
+    {
+    foreach(QUrl url, source->urls())
+      {
+      if(url.isLocalFile())
+        {
+        this->textCursor().insertText(url.toLocalFile());
+        this->textCursor().insertText(" ");
+        }
+      }
+    }
+  else
+    {
+    QTextEdit::insertFromMimeData(source);
+    }
 }
 
 #include <iostream>
@@ -109,6 +229,24 @@ void CommandEditor::keyPressEvent(QKeyEvent *e)
       }
     }
 
+  // Command-enter - execute command
+  if((e->key() == Qt::Key_Enter || e->key() == Qt::Key_Return)
+     && (e->modifiers() == Qt::ControlModifier))
+    {
+    emit commandAccepted();
+    e->ignore();
+    return;
+    }
+
+  // Command-backspace - clear contents
+  if((e->key() == Qt::Key_Backspace || e->key() == Qt::Key_Delete)
+     && (e->modifiers() == Qt::ControlModifier))
+    {
+    emit clearRequested();
+    e->ignore();
+    return;
+    }
+
   // Indentation. If the user pressed enter, mimic the leading spaces
   // from the previous line
   if(e->key() == Qt::Key_Enter || e->key() == Qt::Key_Return)
@@ -116,12 +254,14 @@ void CommandEditor::keyPressEvent(QKeyEvent *e)
     // Go to the beginning of the line and count the blank characters
     QTextCursor tc = textCursor();
     tc.movePosition(QTextCursor::StartOfLine, QTextCursor::MoveAnchor);
-    QString spaces = this->document()->find(QRegExp("\\s*"), tc).selectedText();
+
+    // Indent after 'c3d ' or after spaces
+    QRegExp indentme("(c[2-4]d|snap|itksnap|view)\\s*|\\s*", Qt::CaseInsensitive);
+    QString leading = this->document()->find(indentme, tc).selectedText();
     QTextEdit::keyPressEvent(e);
-    textCursor().insertText(spaces);
+    textCursor().insertText(QString(leading.length(),' '));
     return;
     }
-
 
   // Test for the shortcut
   bool isShortcut = (!e->modifiers() && e->key() == Qt::Key_Tab);
@@ -136,7 +276,7 @@ void CommandEditor::keyPressEvent(QKeyEvent *e)
   QTextCursor tc = textCursor();
   if(tc.position() == 0)
     {
-    QTextEdit::keyPressEvent(e);
+    textCursor().insertText("    ");
     return;
     }
 
@@ -144,7 +284,7 @@ void CommandEditor::keyPressEvent(QKeyEvent *e)
   tc.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor);
   if(tc.selectedText().indexOf(QRegExp("\\s+")) >= 0)
     {
-    QTextEdit::keyPressEvent(e);
+    textCursor().insertText("    ");
     return;
     }
 
@@ -278,6 +418,21 @@ void CommandEditor::focusInEvent(QFocusEvent *e)
   if (m_fileCompleter)
     m_fileCompleter->setWidget(this);
   QTextEdit::focusInEvent(e);
+}
+
+void CommandEditor::mouseDoubleClickEvent(QMouseEvent *mev)
+{
+  QTextCursor cursor = this->cursorForPosition(mev->pos());
+  QString filename = this->filenameUnderCursor(cursor);
+  QFileInfo fi(QDir(QSettings().value("working_dir").toString()), filename);
+
+  // Does the file exist?
+  if(fi.exists() && fi.isFile() && fi.isReadable())
+    {
+    emit validFilenameClicked(fi.absoluteFilePath());
+    }
+  else
+    QTextEdit::mousePressEvent(mev);
 }
 
 void CommandEditor::insertFileCompletion(const QString &completion)

@@ -1,3 +1,28 @@
+/*=========================================================================
+
+  Program:   C3D: Command-line companion tool to ITK-SNAP
+  Module:    BiasFieldCorrectionN4.cxx
+  Language:  C++
+  Website:   itksnap.org/c3d
+  Copyright (c) 2014 Paul A. Yushkevich
+
+  This file is part of C3D, a command-line companion tool to ITK-SNAP
+
+  C3D is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=========================================================================*/
+
 #include "BiasFieldCorrectionN4.h"
 #include "itkBSplineControlPointImageFilter.h"
 //#include "itkBSplineControlPointImageFilter.h"
@@ -5,8 +30,6 @@
 #include "itkDivideImageFilter.h"
 #include "itkExpImageFilter.h"
 #include "itkExtractImageFilter.h"
-//#include "itkN4MRIBiasFieldCorrectionImageFilter.h"
-
 #include "itkN4BiasFieldCorrectionImageFilter.h"
 #include "itkOtsuThresholdImageFilter.h"
 #include "itkShrinkImageFilter.h"
@@ -28,10 +51,10 @@ BiasFieldCorrectionN4<TPixel, VDim>
   bool    n4_optimal_scaling=c->n4_optimal_scaling;
   bool    n4_output_field=c->n4_output_field;
   bool    n4_use_mask=c->n4_use_mask;
-  
+
   ImagePointer mri;
   ImagePointer mask;
-  
+
   // Check input availability
   if(n4_use_mask)
   {
@@ -53,7 +76,7 @@ BiasFieldCorrectionN4<TPixel, VDim>
     mri = c->m_ImageStack.back();
     c->m_ImageStack.pop_back();
   }
-  
+
   // Bias filter
   typedef itk::N4BiasFieldCorrectionImageFilter<ImageType, ImageType, ImageType> CorrecterType;
   typename CorrecterType::Pointer correcter = CorrecterType::New();
@@ -63,7 +86,7 @@ BiasFieldCorrectionN4<TPixel, VDim>
 
   *c->verbose << "  Spline distance: ";
 
-  for(int i=0;i<n4_spline_distance.size();i++) 
+  for(int i=0;i<n4_spline_distance.size();i++)
     *c->verbose << n4_spline_distance[i]<<" ";
   *c->verbose << std::endl;
 
@@ -85,12 +108,12 @@ BiasFieldCorrectionN4<TPixel, VDim>
 
   typename ImageType::PointType newOrigin = mri->GetOrigin();
 
-  unsigned long lowerBound[VDim];
-  unsigned long upperBound[VDim];
+  itk::SizeValueType lowerBound[VDim];
+  itk::SizeValueType upperBound[VDim];
 
   // if spline distance doesn't have enough elements, just keep using the last one
   if(n4_spline_distance.size()<VDim)
-    n4_spline_distance.resize(VDim,n4_spline_distance.back()); 
+    n4_spline_distance.resize(VDim,n4_spline_distance.back());
 
   for( unsigned int d = 0; d < VDim; d++ )
   {
@@ -118,10 +141,17 @@ BiasFieldCorrectionN4<TPixel, VDim>
   padder->SetConstant( 0 );
   padder->Update();
 
+  typename PadderType::Pointer padder2 = PadderType::New();
+  padder2->SetInput( padder->GetOutput() );
+  padder2->SetPadLowerBound( lowerBound );
+  padder2->SetPadUpperBound( upperBound );
+  padder2->SetConstant( 0 );
+  padder2->Update();
+
   // Set up a filter to shrink image by a factor
   typedef itk::ShrinkImageFilter<ImageType, ImageType> ShrinkerType;
   typename ShrinkerType::Pointer shrinker = ShrinkerType::New();
-  shrinker->SetInput( padder->GetOutput() );
+  shrinker->SetInput( padder2->GetOutput() );
   shrinker->SetShrinkFactors( n4_shrink_factor );
   shrinker->Update();
 
@@ -246,7 +276,7 @@ BiasFieldCorrectionN4<TPixel, VDim>
   biasFieldCropper->SetInput( expFilter->GetOutput() );
   biasFieldCropper->SetExtractionRegion( inputRegion );
   biasFieldCropper->Update();
-  
+
   if( n4_output_field )
   {
     c->m_ImageStack.push_back( biasFieldCropper->GetOutput() );
@@ -258,3 +288,4 @@ BiasFieldCorrectionN4<TPixel, VDim>
 // Invocations
 template class BiasFieldCorrectionN4<double, 2>;
 template class BiasFieldCorrectionN4<double, 3>;
+template class BiasFieldCorrectionN4<double, 4>;

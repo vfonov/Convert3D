@@ -1,4 +1,31 @@
+/*=========================================================================
+
+  Program:   C3D: Command-line companion tool to ITK-SNAP
+  Module:    LandmarksToSpheres.cxx
+  Language:  C++
+  Website:   itksnap.org/c3d
+  Copyright (c) 2014 Paul A. Yushkevich
+  
+  This file is part of C3D, a command-line companion tool to ITK-SNAP
+
+  C3D is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+ 
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=========================================================================*/
+
 #include "LandmarksToSpheres.h"
+#include <cstdio>
+#include <fstream>
 
 template <class TPixel, unsigned int VDim>
 void
@@ -9,8 +36,8 @@ LandmarksToSpheres<TPixel, VDim>
   ImagePointer img = c->m_ImageStack.back();
 
   // Open the landmarks file
-  FILE *f = fopen(fnland, "rt");
-  if(!f)
+  ifstream fin(fnland);
+  if(!fin.is_open())
     throw ConvertException("Unable to read file %s", fnland);
 
   // Define a landmark
@@ -18,19 +45,52 @@ LandmarksToSpheres<TPixel, VDim>
   typedef std::pair<PointType, double> Landmark;
   std::list<Landmark> lms;
 
+  // Line buffer
+  std::string line;
+  char *sub_buffer = new char[1024];
+
   // Read each landmark in turn
-  while(!feof(f))
+  while(std::getline(fin, line))
     {
     PointType x; double label = 0; int rc;
+
+    // Allow old format x y z label 
     if(VDim == 2)
-      rc = fscanf(f, "%lf %lf %lf\n", &x[0], &x[1], &label);
-    else
-      rc = fscanf(f, "%lf %lf %lf %lf\n", &x[0], &x[1], &x[2], &label);
-    if (rc != VDim + 1)
-      throw ConvertException("Error reading line %d in file %s", lms.size(), fnland);
-    lms.push_back(make_pair(x, label));
+      rc = sscanf(line.c_str(), "%lf %lf %lf", &x[0], &x[1], &label);
+    else if(VDim == 3)
+      rc = sscanf(line.c_str(), "%lf %lf %lf %lf", &x[0], &x[1], &x[2], &label);
+    else if(VDim == 4)
+      rc = sscanf(line.c_str(), "%lf %lf %lf %lf %lf", &x[0], &x[1], &x[2], &x[3], &label);
+
+    // Successfully read the line
+    if (rc == VDim + 1)
+      {
+      lms.push_back(make_pair(x, label));
+      continue;
+      }
+
+    // Split the line into a vector and a label
+    rc = sscanf(line.c_str(), "%s %lf", sub_buffer, &label);
+    if(rc == 2)
+      {
+      // Try reading a real vector from buffer
+      try 
+        {
+        RealVector vec = c->ReadRealVector(sub_buffer, true);
+        *(c->verbose) << vec << std::endl;
+        for(int i = 0; i < VDim; i++)
+          x[i] = vec[i];
+        lms.push_back(make_pair(x, label));
+        continue;
+        }
+      catch(...) {}
+      }
+
+    throw ConvertException("Error reading line %d in file %s", lms.size(), fnland);
     }
-  fclose(f);
+
+  fin.close();
+  delete[] sub_buffer;
 
   // How many landmarks?
   if(lms.size() == 0)
@@ -112,3 +172,4 @@ LandmarksToSpheres<TPixel, VDim>
 // Invocations
 template class LandmarksToSpheres<double, 2>;
 template class LandmarksToSpheres<double, 3>;
+template class LandmarksToSpheres<double, 4>;
