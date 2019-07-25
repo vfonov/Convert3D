@@ -475,7 +475,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-acos")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_acos);
+    adapter(&std::acos);
     return 0;
     }
 
@@ -528,7 +528,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-asin")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_asin);
+    adapter(&std::asin);
     return 0;
     }
 
@@ -663,7 +663,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-ceil")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_ceil);
+    adapter(&std::ceil);
     return 0;
     }
 
@@ -752,7 +752,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-cos")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_cos);
+    adapter(&std::cos);
     return 0;
     }
 
@@ -843,7 +843,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-exp")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_exp);
+    adapter(&std::exp);
     return 0;
     }
 
@@ -899,7 +899,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-floor")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_floor);
+    adapter(&std::floor);
     return 0;
     }
 
@@ -1128,14 +1128,14 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-ln" || cmd == "-log")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_log);
+    adapter(&std::log);
     return 0;
     }
 
   else if (cmd == "-log10")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_log10);
+    adapter(&std::log10);
     return 0;
     }
 
@@ -1412,7 +1412,7 @@ ImageConverter<TPixel, VDim>
 
     // Exponentiate
     UnaryMathOperation<TPixel, VDim> exp1(this);
-    exp1(&vcl_exp);
+    exp1(&std::exp);
 
     // Scale by factor
     ScaleShiftImage<TPixel, VDim> scale3(this);
@@ -1935,7 +1935,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-sin")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_sin);
+    adapter(&std::sin);
     return 0;
     }
 
@@ -2019,7 +2019,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-sqrt")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_sqrt);
+    adapter(&std::sqrt);
     return 0;
     }
 
@@ -2325,7 +2325,7 @@ ImageConverter<TPixel, VDim>
 ::ProcessCommandLine(int argc, char *argv[])
 {
   // Disable multithreading
-  itk::MultiThreader::SetGlobalDefaultNumberOfThreads(1);
+  itk::MultiThreaderBase::SetGlobalDefaultNumberOfThreads(1);
 
   // The last command
   std::string lastCommand;

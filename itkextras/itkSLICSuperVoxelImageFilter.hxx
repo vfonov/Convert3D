@@ -20,7 +20,7 @@ SLICSuperVoxelImageFilter<TInputImage, TLabelImage, TRealImage>
 
   this->SetNumberOfRequiredInputs(2);
 
-  m_Barrier = Barrier::New();
+  //m_Barrier = Barrier::New(); //C3D is single threaded
 }
 
 template <typename TInputImage, typename TLabelImage, typename TRealImage>
@@ -134,7 +134,7 @@ SLICSuperVoxelImageFilter<TInputImage, TLabelImage, TRealImage>
   m_PerThreadClusters.resize(this->GetNumberOfThreads(), m_Clusters);
 
   // Initialize the barrier
-  m_Barrier->Initialize(this->GetNumberOfThreads());
+  //m_Barrier->Initialize(this->GetNumberOfThreads());
 }
 
 template <typename TInputImage, typename TLabelImage, typename TRealImage>
@@ -226,7 +226,7 @@ SLICSuperVoxelImageFilter<TInputImage, TLabelImage, TRealImage>
       }
 
     // Now we need to wait for all the threads to finish
-    m_Barrier->Wait();
+    //m_Barrier->Wait();
 
     // Now, only the first thread is going to combine the per-thread cluster means into
     // common cluster mean
@@ -256,7 +256,7 @@ SLICSuperVoxelImageFilter<TInputImage, TLabelImage, TRealImage>
       }
 
     // All threads must wait for thread 0 to get here
-    m_Barrier->Wait();
+    //m_Barrier->Wait();
     }
 }
 

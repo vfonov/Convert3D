@@ -107,12 +107,15 @@ MomentsFeatures<TPixel, VDim>
     }
 
   // Create the eigenvalue computer
-  typedef itk::Image<itk::CovariantVector<RealPixelType, VDim> > EigenValueImageType;
-  typedef itk::SymmetricEigenAnalysisImageFilter<TensorImageType, EigenValueImageType>
+  //typedef itk::Image<itk::CovariantVector<RealPixelType, VDim> > EigenValueImageType;
+  typedef itk::FixedArray< RealPixelType, VDim > EigenValueArrayType ;
+  typedef itk::Image< EigenValueArrayType, VDim > EigenValueImageType;
+
+  typedef itk::SymmetricEigenAnalysisFixedDimensionImageFilter<VDim, TensorImageType, EigenValueImageType>
     EigenValueFilterType;
   typename EigenValueFilterType::Pointer eigen = EigenValueFilterType::New();
   eigen->SetInput(tensor);
-  eigen->SetDimension(VDim);
+  //eigen->SetDimension(VDim);
   eigen->OrderEigenValuesBy(EigenValueFilterType::FunctorType::OrderByValue);
    
   // Update the eigen filter

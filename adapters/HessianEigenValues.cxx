@@ -40,7 +40,10 @@ HessianEigenValues<TPixel, VDim>
   typedef typename itk::NumericTraits<TPixel>::RealType RealPixelType;
   typedef itk::SymmetricSecondRankTensor<RealPixelType, VDim> HessianPixelType;
   typedef itk::Image<HessianPixelType, VDim> HessianImageType;
-  typedef itk::Image<itk::CovariantVector<RealPixelType, VDim> > EigenValueImageType;
+  //typedef itk::Image<itk::CovariantVector<RealPixelType, VDim> > EigenValueImageType;
+
+  typedef itk::FixedArray< RealPixelType, VDim > EigenValueArrayType ;
+  typedef itk::Image< EigenValueArrayType, VDim > EigenValueImageType;
 
   // Filter to compute Hessian
   typedef itk::HessianRecursiveGaussianImageFilter<ImageType, HessianImageType> 
@@ -51,11 +54,11 @@ HessianEigenValues<TPixel, VDim>
   hf->SetSigma(scale);
 
   // Create the eigenvalue computer
-  typedef itk::SymmetricEigenAnalysisImageFilter<HessianImageType, EigenValueImageType>
+  typedef itk::SymmetricEigenAnalysisFixedDimensionImageFilter<VDim,HessianImageType, EigenValueImageType>
     EigenValueFilterType;
   typename EigenValueFilterType::Pointer eigen = EigenValueFilterType::New();
   eigen->SetInput(hf->GetOutput());
-  eigen->SetDimension(VDim);
+  //eigen->SetDimension(VDim);
   eigen->OrderEigenValuesBy(EigenValueFilterType::FunctorType::OrderByValue);
 
   // Run the filter

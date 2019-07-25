@@ -3,7 +3,7 @@
 
 #include "itkImageToImageFilter.h"
 #include "itkSmartPointer.h"
-#include "itkBarrier.h"
+//#include "itkBarrier.h"
 
 namespace itk {
 
@@ -90,7 +90,7 @@ private:
   std::vector<ClusterVector> m_PerThreadClusters;
 
   // Barrier for threading 
-  typename Barrier::Pointer m_Barrier;
+  //typename Barrier::Pointer m_Barrier;
 
   // Search region size
   SizeType m_SearchRegionSize;
