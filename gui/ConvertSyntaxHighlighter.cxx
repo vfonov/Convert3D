@@ -1,3 +1,28 @@
+/*=========================================================================
+
+  Program:   C3D: Command-line companion tool to ITK-SNAP
+  Module:    ConvertSyntaxHighlighter.cxx
+  Language:  C++
+  Website:   itksnap.org/c3d
+  Copyright (c) 2014 Paul A. Yushkevich
+  
+  This file is part of C3D, a command-line companion tool to ITK-SNAP
+
+  C3D is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+ 
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=========================================================================*/
+
 #include "ConvertSyntaxHighlighter.h"
 #include <QFileInfo>
 #include <QSettings>
@@ -25,6 +50,11 @@ void ConvertSyntaxHighlighter::highlightBlock(const QString &text)
   fmtFile.setUnderlineStyle(QTextCharFormat::SingleUnderline);
   fmtFile.setForeground(QColor("blue"));
 
+  // Format for filenames
+  QTextCharFormat fmtExe;
+  fmtExe.setFontWeight(QFont::Bold);
+  fmtExe.setForeground(QColor("darkred"));
+
   // Find things that start with a minus sign
   // QRegExp reCommand = QRegExp("\\-\\b\\[a-z]+\\b");
   QRegExp reCommand = QRegExp("(^|\\s)(-[a-z\\-]+)(\\s|$)");
@@ -50,5 +80,12 @@ void ConvertSyntaxHighlighter::highlightBlock(const QString &text)
       setFormat(reCommand.pos(2), testfile.length(), fmtFile);
       }
     index = text.indexOf(reCommand, std::max(reCommand.pos(3), index+1));
+    }
+
+  reCommand = QRegExp("(^|\\s)(c[2-4]d|snap|itksnap|view)(\\s|$)", Qt::CaseInsensitive);
+  index = text.indexOf(reCommand, 0);
+  if(index >= 0)
+    {
+    setFormat(reCommand.pos(2), reCommand.cap(2).length(), fmtExe);
     }
 }

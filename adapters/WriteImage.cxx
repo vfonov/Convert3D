@@ -1,3 +1,28 @@
+/*=========================================================================
+
+  Program:   C3D: Command-line companion tool to ITK-SNAP
+  Module:    WriteImage.cxx
+  Language:  C++
+  Website:   itksnap.org/c3d
+  Copyright (c) 2014 Paul A. Yushkevich
+  
+  This file is part of C3D, a command-line companion tool to ITK-SNAP
+
+  C3D is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+ 
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=========================================================================*/
+
 #include "WriteImage.h"
 #include "itksys/SystemTools.hxx"
 #include "itkImageFileWriter.h"
@@ -51,11 +76,17 @@ WriteImage<TPixel, VDim>
   for(size_t i = 0; i < n; i++)
     output->GetBufferPointer()[i] = (TOutPixel) (input->GetBufferPointer()[i] + xRoundFactor);
 
+  // Set the file notes for this image
+  itk::EncapsulateMetaData<string>(
+    output->GetMetaDataDictionary(),itk::ITK_FileNotes,
+        std::string("Created by Convert3D"));
+
   // Write the image out
   typedef itk::ImageFileWriter<OutputImageType> WriterType;
   typename WriterType::Pointer writer = WriterType::New();
   writer->SetInput(output);
   writer->SetFileName(file);
+  writer->SetUseCompression(c->m_UseCompression);
   try { writer->Update(); }
   catch (itk::ExceptionObject &exc) {
     cerr << "Error writing image to " << file << endl;
@@ -98,9 +129,8 @@ template<class TPixel, unsigned int VDim>
 template<class TOutPixel>
 void 
 WriteImage<TPixel, VDim>
-::TemplatedWriteMultiComponentImage(const char *file, double xRoundFactor, int pstart)
+::TemplatedWriteMultiComponentImage(const char *file, double xRoundFactor, int pstart, int ncomp)
 {
-  size_t ncomp = c->m_ImageStack.size() - pstart;
   if(ncomp <= 0)
     throw ConvertException("No data has been generated! Can't write to %s", file);
 
@@ -124,7 +154,7 @@ WriteImage<TPixel, VDim>
   output->Allocate();
 
   // Describe what we are doing
-  *c->verbose << "Writing Images" << pstart+1 << " to " << c->m_ImageStack.size() << " to multicomponent file " << file << endl;
+  *c->verbose << "Writing Images " << pstart+1 << " to " << (pstart+ncomp) << " to multicomponent file " << file << endl;
   *c->verbose << "  Output voxel type: " << c->m_TypeId << "[" << typeid(TOutPixel).name() << "]" << endl;
   *c->verbose << "  Rounding off: " << (xRoundFactor == 0.0 ? "Disabled" : "Enabled") << endl;
     
@@ -146,6 +176,7 @@ WriteImage<TPixel, VDim>
   typename WriterType::Pointer writer = WriterType::New();
   writer->SetInput(output);
   writer->SetFileName(file);
+  writer->SetUseCompression(c->m_UseCompression);
   try { writer->Update(); }
   catch (itk::ExceptionObject &exc) 
     {
@@ -156,30 +187,31 @@ WriteImage<TPixel, VDim>
 template <class TPixel, unsigned int VDim>
 void
 WriteImage<TPixel, VDim>
-::WriteMultiComponent(const char *file, int ncomp)
+::WriteMultiComponent(const char *file, int ncomp, int pos)
 {
   // Get the position of the first image to include
-  int pos = c->m_ImageStack.size() - ncomp;
+  if(pos < 0)
+    pos = c->m_ImageStack.size() - ncomp;
 
   if(c->m_TypeId == "char" || c->m_TypeId == "byte")
-    TemplatedWriteMultiComponentImage<char>(file, c->m_RoundFactor, pos);
+    TemplatedWriteMultiComponentImage<char>(file, c->m_RoundFactor, pos, ncomp);
   if(c->m_TypeId == "uchar" || c->m_TypeId == "ubyte")
-    TemplatedWriteMultiComponentImage<unsigned char>(file, c->m_RoundFactor, pos);
+    TemplatedWriteMultiComponentImage<unsigned char>(file, c->m_RoundFactor, pos, ncomp);
   
   if(c->m_TypeId == "short") 
-    TemplatedWriteMultiComponentImage<short>(file, c->m_RoundFactor, pos);
+    TemplatedWriteMultiComponentImage<short>(file, c->m_RoundFactor, pos, ncomp);
   if(c->m_TypeId == "ushort")
-    TemplatedWriteMultiComponentImage<unsigned short>(file, c->m_RoundFactor, pos);
+    TemplatedWriteMultiComponentImage<unsigned short>(file, c->m_RoundFactor, pos, ncomp);
 
   if(c->m_TypeId == "int") 
-    TemplatedWriteMultiComponentImage<int>(file, c->m_RoundFactor, pos);
+    TemplatedWriteMultiComponentImage<int>(file, c->m_RoundFactor, pos, ncomp);
   if(c->m_TypeId == "uint")
-    TemplatedWriteMultiComponentImage<unsigned int>(file, c->m_RoundFactor, pos);
+    TemplatedWriteMultiComponentImage<unsigned int>(file, c->m_RoundFactor, pos, ncomp);
 
   if(c->m_TypeId == "float") 
-    TemplatedWriteMultiComponentImage<float>(file, 0.0, pos);
+    TemplatedWriteMultiComponentImage<float>(file, 0.0, pos, ncomp);
   if(c->m_TypeId == "double")
-    TemplatedWriteMultiComponentImage<double>(file, 0.0, pos);
+    TemplatedWriteMultiComponentImage<double>(file, 0.0, pos, ncomp);
 }
 
 
@@ -221,3 +253,4 @@ WriteImage<TPixel, VDim>
 // Invocations
 template class WriteImage<double, 2>;
 template class WriteImage<double, 3>;
+template class WriteImage<double, 4>;

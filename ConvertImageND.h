@@ -1,9 +1,35 @@
+/*=========================================================================
+
+  Program:   C3D: Command-line companion tool to ITK-SNAP
+  Module:    ConvertImageND.h
+  Language:  C++
+  Website:   itksnap.org/c3d
+  Copyright (c) 2014 Paul A. Yushkevich
+  
+  This file is part of C3D, a command-line companion tool to ITK-SNAP
+
+  C3D is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+ 
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=========================================================================*/
+
 #ifndef __ConvertImageND_h_
 #define __ConvertImageND_h_
 
 #include "itkOrientedRASImage.h"
 #include "itkImageRegionIteratorWithIndex.h"
 #include "itkInterpolateImageFunction.h"
+#include "ImageStack.h"
 #include "ConvertException.h"
 #include "itkMetaDataDictionary.h"
 
@@ -18,6 +44,9 @@
 using namespace std;
 
 template <class TPixel, unsigned int VDim> class ConvertAdapter;
+
+template <class TPixel, unsigned int VDim> struct ConvertAlgorithmParameters;
+class Documentation;
 
 template<class TPixel, unsigned int VDim>
 class ImageConverter
@@ -47,6 +76,7 @@ public:
   typedef itk::InterpolateImageFunction<ImageType, double> Interpolator;
   
   ImageConverter();
+  ~ImageConverter();
   int ProcessCommandLine(int argc, char *argv[]);
 
   friend class ConvertAdapter<TPixel, VDim>;
@@ -87,7 +117,15 @@ public:
   RealVector ReadRealSize(const char *vec);
   TPixel ReadIntensityValue(const char *vec);
 
-  static void PrintCommandListing(std::ostream &out);
+  void PrintManual(std::ostream &out);
+  void PrintCommandListing(std::ostream &out);
+  void PrintCommandHelp(std::ostream &out, const char *command);
+
+  // Add variable
+  void SetVariable(std::string name, ImagePointer image);
+
+  // Get variable
+  ImageType *GetVariable(std::string name);
 
 private:
 
@@ -108,8 +146,14 @@ private:
   // Implementation of the 'foreach' loop
   size_t ForEachLoop(int argc, char *argv[]);
 
+  // Implementation of the 'foreach-comp' loop
+  size_t ForEachComponentLoop(int ncomp, int argc, char *argv[]);
+
   // Implementation of the 'accum' loop
   size_t AccumulateLoop(int argc, char *argv[]);
+
+  // Write multiple images (for -oo and --oomc commands)
+  int WriteMultiple(int argc, char *argv[], int n_comp, const char *command);
 
   // Type of loop we are in currently
   enum LoopType { LOOP_NONE = 0, LOOP_FOREACH, LOOP_ACCUM };
@@ -121,7 +165,31 @@ private:
 public:
 
   // Stack of images from the command line
-  vector<ImagePointer> m_ImageStack;
+  ImageStack<ImageType> m_ImageStack;
+
+  // Get the last image from the stack and pop it off
+  ImagePointer PopImage();
+
+  // Get the last K images from the stack and pop them off
+  std::vector<ImagePointer> PopNImages(unsigned int n);
+
+  // Push a new image to the stack
+  void PushImage(ImageType *image);
+
+  // Get the size of the stack
+  int GetStackSize();
+
+  // Print something to verbose output, but using printf syntax
+  void PrintF(const char *fmt, ...);
+
+  // Get Nth image on the stack without removing it
+  ImageType *PeekImage(int k);
+
+  // Get Nth image on the stack without removing it
+  ImageType *PeekLastImage();
+
+  // Replace an image at the end of the stack with its copy
+  ImageType *PopAndPushCopy();
 
   // Typeid of the image to be saved
   string m_TypeId;
@@ -138,17 +206,18 @@ public:
   // Whether SPM extensions are used
   bool m_FlagSPM;
 
+  // Whether compression is used by default
+  bool m_UseCompression;
+
   // Whether multicomponent images are split on read
   bool m_MultiComponentSplit;
 
   // Number of iterations for various algorithms
   size_t m_Iterations;
 
-  // Root mean square error for anti-aliasing algorithm
-  double m_AntiAliasRMS;
-
-  // Level set algorithm parameters
-  double m_LevSetCurvature, m_LevSetAdvection;
+  // Parameters for various algorithms
+  typedef ConvertAlgorithmParameters<TPixel, VDim> ParameterType;
+  ParameterType *m_Param;
 
   // N3 and N4 filter parameters
   // distance (in mm) of the mesh resolution at the base level
@@ -185,6 +254,9 @@ public:
   // Verbose output stream
   std::ostringstream devnull;
   std::ostream *verbose;
+
+  // Documentation object
+  Documentation *m_Documentation;
 };
 
 #endif

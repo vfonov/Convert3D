@@ -1,7 +1,33 @@
+/*=========================================================================
+
+  Program:   C3D: Command-line companion tool to ITK-SNAP
+  Module:    LevelSetSegmentation.cxx
+  Language:  C++
+  Website:   itksnap.org/c3d
+  Copyright (c) 2014 Paul A. Yushkevich
+  
+  This file is part of C3D, a command-line companion tool to ITK-SNAP
+
+  C3D is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+ 
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=========================================================================*/
+
 #include "LevelSetSegmentation.h"
 #include "itkSegmentationLevelSetImageFilter.h"
 #include "itkSegmentationLevelSetFunction.h"
 #include "itkShiftScaleImageFilter.h"
+#include "itkImageAlgorithm.h"
 
 template<class TImageType, class TFeatureImageType = TImageType>
 class MyLevelSetFunction :
@@ -21,12 +47,21 @@ public:
   // New pointer
   itkNewMacro(Self);
 
+  // Calculate speed image - just copy the feature image
+  virtual void CalculateSpeedImage() ITK_OVERRIDE
+    {
+    itk::ImageAlgorithm::Copy( this->GetFeatureImage(),
+      this->GetSpeedImage(),
+      this->GetFeatureImage()->GetRequestedRegion(),
+      this->GetFeatureImage()->GetRequestedRegion() );
+    }
+
 protected:
 
   MyLevelSetFunction() {};
   ~MyLevelSetFunction() {};
 
-  virtual void PrintSelf(std::ostream &os, itk::Indent indent) const
+  virtual void PrintSelf(std::ostream &os, itk::Indent indent) const ITK_OVERRIDE
     { os << indent << "MyLevelSetFunction"; }
 
 private:
@@ -65,7 +100,7 @@ protected:
   MyLevelSetFilter() {};
   ~MyLevelSetFilter() {};
 
-  virtual void PrintSelf(std::ostream &os, itk::Indent indent) const
+  virtual void PrintSelf(std::ostream &os, itk::Indent indent) const ITK_OVERRIDE
     { os << indent << "MyLevelSetFilter"; }
 
 private:
@@ -85,7 +120,7 @@ void DumpProgress(itk::Object *object, const itk::EventObject &obj, void *client
 template <class TPixel, unsigned int VDim>
 void
 LevelSetSegmentation<TPixel, VDim>
-::operator() (int nIter)
+::operator() (int nIter, const LevelSetParameters &param)
 {
   // Check input availability
   if(c->m_ImageStack.size() < 2)
@@ -113,8 +148,8 @@ LevelSetSegmentation<TPixel, VDim>
   // Create the function
   typedef MyLevelSetFunction<UnorientedImageType> SegFunction;
   typename SegFunction::Pointer fnSegment = SegFunction::New();
-  fnSegment->SetCurvatureWeight(c->m_LevSetCurvature);
-  fnSegment->SetAdvectionWeight(c->m_LevSetAdvection);
+  fnSegment->SetCurvatureWeight(param.CurvatureWeight);
+  fnSegment->SetAdvectionWeight(param.AdvectionWeight);
   fnSegment->SetPropagationWeight(1.0);
   fnSegment->Initialize(rad);
   fnSegment->SetSpeedImage(i2);
@@ -125,11 +160,12 @@ LevelSetSegmentation<TPixel, VDim>
   fltSegment->SetFeatureImage(i2);
   fltSegment->SetNumberOfLayers(3);
   fltSegment->SetIsoSurfaceValue(0.0);
+  fltSegment->SetMaximumRMSError(1.0e-4);
   fltSegment->SetNumberOfIterations(nIter);
 
   *c->verbose << "  NIterations:    " << nIter << endl;
-  *c->verbose << "  Curv Weight:    " << c->m_LevSetCurvature << endl;
-  *c->verbose << "  Adv Weight:     " << c->m_LevSetAdvection << endl;
+  *c->verbose << "  Curv Weight:    " << param.CurvatureWeight << endl;
+  *c->verbose << "  Adv Weight:     " << param.AdvectionWeight << endl;
 
   // Execute the filter
   fltSegment->Update();
@@ -153,3 +189,4 @@ LevelSetSegmentation<TPixel, VDim>
 // Invocations
 template class LevelSetSegmentation<double, 2>;
 template class LevelSetSegmentation<double, 3>;
+template class LevelSetSegmentation<double, 4>;

@@ -1,3 +1,28 @@
+/*=========================================================================
+
+  Program:   C3D: Command-line companion tool to ITK-SNAP
+  Module:    BiasFieldCorrectionN4.cxx
+  Language:  C++
+  Website:   itksnap.org/c3d
+  Copyright (c) 2014 Paul A. Yushkevich
+  
+  This file is part of C3D, a command-line companion tool to ITK-SNAP
+
+  C3D is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+ 
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=========================================================================*/
+
 #include "BiasFieldCorrectionN4.h"
 #include "itkBSplineControlPointImageFilter.h"
 //#include "itkBSplineControlPointImageFilter.h"
@@ -5,8 +30,6 @@
 #include "itkDivideImageFilter.h"
 #include "itkExpImageFilter.h"
 #include "itkExtractImageFilter.h"
-//#include "itkN4MRIBiasFieldCorrectionImageFilter.h"
-
 #include "itkN4BiasFieldCorrectionImageFilter.h"
 #include "itkOtsuThresholdImageFilter.h"
 #include "itkShrinkImageFilter.h"
@@ -85,8 +108,8 @@ BiasFieldCorrectionN4<TPixel, VDim>
 
   typename ImageType::PointType newOrigin = mri->GetOrigin();
 
-  unsigned long lowerBound[VDim];
-  unsigned long upperBound[VDim];
+  itk::SizeValueType lowerBound[VDim];
+  itk::SizeValueType upperBound[VDim];
 
   // if spline distance doesn't have enough elements, just keep using the last one
   if(n4_spline_distance.size()<VDim)
@@ -117,6 +140,13 @@ BiasFieldCorrectionN4<TPixel, VDim>
   padder->SetPadUpperBound( upperBound );
   padder->SetConstant( 0 );
   padder->Update();
+
+  typename PadderType::Pointer padder2 = PadderType::New();
+  padder2->SetInput( padder->GetOutput() );
+  padder2->SetPadLowerBound( lowerBound );
+  padder2->SetPadUpperBound( upperBound );
+  padder2->SetConstant( 0 );
+  padder2->Update();
 
   // Set up a filter to shrink image by a factor
   typedef itk::ShrinkImageFilter<ImageType, ImageType> ShrinkerType;
@@ -258,3 +288,4 @@ BiasFieldCorrectionN4<TPixel, VDim>
 // Invocations
 template class BiasFieldCorrectionN4<double, 2>;
 template class BiasFieldCorrectionN4<double, 3>;
+template class BiasFieldCorrectionN4<double, 4>;

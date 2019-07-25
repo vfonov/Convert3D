@@ -1,3 +1,28 @@
+/*=========================================================================
+
+  Program:   C3D: Command-line companion tool to ITK-SNAP
+  Module:    ApplyMetric.cxx
+  Language:  C++
+  Website:   itksnap.org/c3d
+  Copyright (c) 2014 Paul A. Yushkevich
+  
+  This file is part of C3D, a command-line companion tool to ITK-SNAP
+
+  C3D is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+ 
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=========================================================================*/
+
 #include <string>
 #include <iostream>
 #include "ApplyMetric.h"
@@ -13,6 +38,7 @@
 #include "itkResampleImageFilter.h"
 #include "gsGSAffine3DTransform.h"
 #include <vnl/vnl_inverse.h>
+#include <vnl/algo/vnl_matrix_inverse.h>
 
 
 template <class TPixel, unsigned int VDim>
@@ -71,22 +97,19 @@ ApplyMetric<TPixel, VDim>
                     itk::Matrix<double,VDim,VDim> &amat,
                     itk::Vector<double, VDim> &aoff)
 {
+  // Get the transform matrix and the offset vector
+  vnl_matrix<double> A_ras = matrix.GetVnlMatrix().extract(VDim, VDim); 
+  vnl_vector<double> b_ras = matrix.GetVnlMatrix().extract(VDim, 1, 0, VDim).get_column(0);
 
-    amat.GetVnlMatrix().update(
-      matrix.GetVnlMatrix().extract(VDim, VDim));
-    aoff.GetVnlVector().update(
-      matrix.GetVnlMatrix().get_column(VDim).extract(VDim));
+  // Extrernal matrices are assumed to be RAS to RAS, so we must convert to LPS to LPS
+  vnl_vector<double> v_lps_to_ras(VDim, 1.0);
+  v_lps_to_ras[0] = v_lps_to_ras[1] = -1.0;
+  vnl_diag_matrix<double> m_lps_to_ras(v_lps_to_ras);
+  vnl_matrix<double> A_lps = m_lps_to_ras * A_ras * m_lps_to_ras;
+  vnl_vector<double> b_lps = m_lps_to_ras * b_ras;
 
-
-    // External matrices are assumed to be RAS to RAS, so we must convert to LPS to LPS
-    vnl_vector<double> v_lps_to_ras(VDim, 1.0);
-    v_lps_to_ras[0] = v_lps_to_ras[1] = -1.0;
-    vnl_diag_matrix<double> m_lps_to_ras(v_lps_to_ras);
-    vnl_matrix<double> mold = amat.GetVnlMatrix();
-    amat.GetVnlMatrix().update(m_lps_to_ras * mold * m_lps_to_ras);
-    aoff.GetVnlVector().update(m_lps_to_ras * aoff.GetVnlVector());
-
-
+  amat = A_lps;
+  aoff.SetVnlVector(b_lps);
 }
 
 
@@ -250,15 +273,15 @@ ApplyMetric<TPixel, VDim>
   MatrixType mfixed  = fixed->GetVoxelSpaceToRASPhysicalSpaceMatrix().GetVnlMatrix();
   MatrixType mmoving = moving->GetVoxelSpaceToRASPhysicalSpaceMatrix().GetVnlMatrix();
   
-  MatrixType mcomb = mmoving * vnl_inverse(mfixed);
+  MatrixType mcomb = mmoving * vnl_matrix_inverse<double>(mfixed);
   // Peform Denman-Beavers iteration
   MatrixType Z, Y = mcomb;
   Z.set_identity();
 
   for(size_t i = 0; i < 16; i++) 
     {    
-    MatrixType Ynext = 0.5 * (Y + vnl_inverse(Z));
-    MatrixType Znext = 0.5 * (Z + vnl_inverse(Y));
+    MatrixType Ynext = 0.5 * (Y + vnl_matrix_inverse<double>(Z));
+    MatrixType Znext = 0.5 * (Z + vnl_matrix_inverse<double>(Y));
     Y = Ynext;
     Z = Znext;
     }    
@@ -444,3 +467,4 @@ ApplyMetric<TPixel, VDim>
 // Invocations
 template class ApplyMetric<double, 2>;
 template class ApplyMetric<double, 3>;
+template class ApplyMetric<double, 4>;

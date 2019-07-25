@@ -1,3 +1,28 @@
+/*=========================================================================
+
+  Program:   C3D: Command-line companion tool to ITK-SNAP
+  Module:    MixtureModel.cxx
+  Language:  C++
+  Website:   itksnap.org/c3d
+  Copyright (c) 2014 Paul A. Yushkevich
+  
+  This file is part of C3D, a command-line companion tool to ITK-SNAP
+
+  C3D is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+ 
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=========================================================================*/
+
 #include "MixtureModel.h"
 
 #include "itkImageToListSampleAdaptor.h"
@@ -20,15 +45,14 @@ MixtureModel<TPixel, VDim>
   // creat a new image with array pixel type from the source
   typedef itk::FixedArray< TPixel, 1 > ArrayPixelType ;
   typedef itk::Image< ArrayPixelType, VDim > ArrayPixelImageType ;
-  typedef itk::ComposeImageFilter< ImageType, ArrayPixelImageType >
-    ImageCastFilterType ;
+  typedef itk::ComposeImageFilter< ImageType, ArrayPixelImageType > ImageCastFilterType ;
   typename ImageCastFilterType::Pointer castFilter = ImageCastFilterType::New() ;
   castFilter->SetInput(img);
   castFilter->Update() ;
   
-  typedef ImageToListSampleAdaptor<ImageType> DataSampleType;
+  typedef ImageToListSampleAdaptor<ArrayPixelImageType> DataSampleType;
   typename DataSampleType::Pointer sample = DataSampleType::New();
-  sample->SetImage(img);
+  sample->SetImage(castFilter->GetOutput());
 
   // Component definition
   typedef GaussianMixtureModelComponent<DataSampleType> ComponentType;
@@ -61,14 +85,19 @@ MixtureModel<TPixel, VDim>
       "mu = " << mu[i] << "; " <<
       "sigma = " << sigma[i] << "; " <<
       "alpha = " << initprop[i] << "; " << endl;
+
     }
 
   typedef ExpectationMaximizationMixtureModelEstimator<DataSampleType> EstimatorType;
   typename EstimatorType::Pointer estimator = EstimatorType::New();
 
+  estimator->SetSample(sample);
+  estimator->SetMaximumIteration(100);
   estimator->SetInitialProportions(initprop);
   for(size_t i = 0; i < mu.size(); i++)
     estimator->AddComponent(comps[i]);
+
+
   estimator->Update();
 
   *c->verbose << "  Estimated Parameters : " << endl;
@@ -92,3 +121,4 @@ MixtureModel<TPixel, VDim>
 // Invocations
 template class MixtureModel<double, 2>;
 template class MixtureModel<double, 3>;
+template class MixtureModel<double, 4>;

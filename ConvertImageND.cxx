@@ -1,36 +1,76 @@
+/*=========================================================================
+
+  Program:   C3D: Command-line companion tool to ITK-SNAP
+  Module:    ConvertImageND.cxx
+  Language:  C++
+  Website:   itksnap.org/c3d
+  Copyright (c) 2014 Paul A. Yushkevich
+  
+  This file is part of C3D, a command-line companion tool to ITK-SNAP
+
+  C3D is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+ 
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=========================================================================*/
+
 #include "ConvertImageND.h"
 
 #include "AddImages.h"
 #include "AlignByLandmarks.h"
 #include "AntiAliasImage.h"
 #include "ApplyMetric.h"
-#include "BiasFieldCorrection.h"
+#include "ApplyNoise.h"
 #include "BiasFieldCorrectionN4.h"
 #include "BinaryHoleFill.h"
 #include "BinaryImageCentroid.h"
 #include "BinaryMathOperation.h"
+#include "Canny.h"
 #include "ClipImageIntensity.h"
 #include "ComputeFFT.h"
+#include "ComputeMoments.h"
 #include "ComputeOverlaps.h"
 #include "ConnectedComponents.h"
 #include "ConvertAdapter.h"
+#include "Convolution.h"
 #include "CoordinateMap.h"
 #include "CopyTransform.h"
 #include "CreateImage.h"
 #include "CreateInterpolator.h"
+#include "DicomSeriesList.h"
+#include "ExportPatches.h"
 #include "ExtractRegion.h"
 #include "ExtractSlice.h"
+#include "ExtrudeSegmentation.h"
 #include "FlipImage.h"
+#include "FillBackgroundWithNeighborhoodNoise.h"
 #include "GeneralLinearModel.h"
+#include "HessianEigenValues.h"
+#include "HessianObjectness.h"
 #include "HistogramMatch.h"
 #include "ImageERF.h"
+#include "ImageGradient.h"
 #include "ImageLaplacian.h"
 #include "LabelOverlapMeasures.h"
 #include "LabelStatistics.h"
 #include "LandmarksToSpheres.h"
+#include "LaplacianSharpening.h"
 #include "LevelSetSegmentation.h"
+#include "MatchBoundingBoxes.h"
 #include "MathematicalMorphology.h"
+#include "MeanFilter.h"
+#include "MedianFilter.h"
 #include "MixtureModel.h"
+#include "MomentsFeatures.h"
 #include "MRFVote.h"
 #include "MultiplyImages.h"
 #include "NormalizedCrossCorrelation.h"
@@ -46,15 +86,21 @@
 #include "ReplaceIntensities.h"
 #include "ResampleImage.h"
 #include "ResliceImage.h"
+#include "RetainLabels.h"
+#include "RFApply.h"
+#include "RFTrain.h"
 #include "SampleImage.h"
 #include "ScalarToRGB.h"
 #include "ScaleShiftImage.h"
 #include "SetOrientation.h"
 #include "SetSform.h"
 #include "SignedDistanceTransform.h"
+#include "SLICSuperVoxel.h"
 #include "SmoothImage.h"
 #include "SplitMultilabelImage.h"
 #include "StapleAlgorithm.h"
+#include "StructureTensorEigenValues.h"
+#include "SwapDimensions.h"
 #include "TestImage.h"
 #include "ThresholdImage.h"
 #include "TileImages.h"
@@ -62,6 +108,7 @@
 #include "UnaryMathOperation.h"
 #include "UpdateMetadataKey.h"
 #include "Vote.h"
+#include "VoxelwiseComponentFunction.h"
 #include "VoxelwiseRegression.h"
 #include "WarpImage.h"
 #include "WarpLabelImage.h"
@@ -73,11 +120,25 @@
 #include <cstring>
 #include <algorithm>
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <time.h>
 
 // Support for regular expressions via KWSYS in ITK
 #include <itksys/RegularExpression.hxx>
+
+// Image to image filter - for some global tolerance code
+#include <itkImageToImageFilter.h>
+
+// Documentation manual
+#include "Documentation.h"
+
+// Markdown documentation string generated at compile-time
+// this looks a little odd, but works - the include file contains raw bytes
+unsigned char c3d_md[] = {
+  #include "markdown_docs.h"
+  0x00 
+};
 
 using namespace itksys;
 
@@ -93,12 +154,189 @@ double myatof(char *str)
   return d;
 };
 
+long myatol(char *str)
+{
+  char *end = 0;
+  double d = strtol(str, &end, 10);
+  if (*end != 0)
+    throw "strtol conversion failed";
+  return d;
+};
+
+
 std::string str_to_lower(const char *input)
 {
   std::string s(input);
   std::transform(s.begin(), s.end(), s.begin(), (int(*)(int)) tolower);
   return s;
 }
+
+// Check whether value is a valid float (no leading spaces allowed)
+bool is_double(const char *input)
+{
+  std::istringstream iss(input);
+  double f;
+  iss >> std::noskipws >> f; // noskipws considers leading whitespace invalid
+
+  // Check the entire string was consumed and if either failbit or badbit is set
+  return iss.eof() && !iss.fail();
+}
+
+
+
+    /*
+    out << "Command Listing: " << endl;
+    out << "    -accum" << endl;
+    out << "    -add" << endl;
+    out << "    -align-landmarks, -alm" << endl;
+    out << "    -anisotropic-diffusion, -ad" << endl;
+    out << "    -antialias, -alias" << endl;
+    out << "    -as, -set" << endl;
+    out << "    -atan2" << endl;
+    out << "    -background" << endl;
+    out << "    -biascorr" << endl;
+    out << "    -binarize" << endl;
+     ***  out << "    -canny" << endl;
+     out << "    -centroid" << endl;
+     out << "    -clear" << endl;
+     out << "    -clip" << endl;
+     out << "    -colormap, -color-map" << endl;
+     out << "    -connected-components, -connected, -comp" << endl;
+     out << "    -coordinate-map-voxel, -cmv" << endl;
+     out << "    -coordinate-map-physical, -cmp" << endl;
+     out << "    -copy-transform, -ct" << endl;
+     out << "    -cos" << endl;
+     out << "    -create" << endl;
+     out << "    -dilate" << endl;
+     out << "    -divide" << endl;
+     out << "    -dup" << endl;
+     out << "    -endaccum" << endl;
+     out << "    -endfor" << endl;
+     out << "    -erode" << endl;
+     out << "    -erf" << endl;
+     out << "    -exp" << endl;
+     ***  out << "    -fft" << endl;
+     out << "    -flip" << endl;
+     out << "    -foreach" << endl;
+     out << "    -glm" << endl;
+     ***  out << "    -hessobj, -hessian-objectness" << endl;
+     ***  out << "    -histmatch, -histogram-match" << endl;
+     out << "    -holefill, -hf" << endl;
+     out << "    -info" << endl;
+     out << "    -info-full" << endl;
+     out << "    -insert, -ins" << endl;
+     out << "    -interpolation, -interp, -int" << endl;
+     out << "    -iterations" << endl;
+     ***  out << "    -label-overlap" << std::endl;
+     out << "    -label-statistics, -lstat" << endl;
+     out << "    -landmarks-to-spheres, -lts" << endl;
+     out << "    -laplacian, -laplace" << endl;
+     out << "    -levelset" << endl;
+     out << "    -levelset-curvature" << endl;
+     out << "    -levelset-advection" << endl;
+     out << "    -ln, -log" << endl;
+     out << "    -log10" << endl;
+     out << "    -max, -maximum" << endl;
+     out << "    -mcs, -multicomponent-split" << endl;
+     out << "    -mean" << endl;
+     out << "    -merge" << endl;
+     ***  out << "    -mf, -mean-filter" << endl;
+     out << "    -mi, -mutual-info" << endl;
+     out << "    -min, -minimum" << endl;
+     out << "    -mixture, -mixture-model" << endl;
+     out << "    -multiply, -times" << endl;
+     out << "    -n4, -n4-bias-correction" << endl;
+     out << "    -ncc, -normalized-cross-correlation" << endl;
+     out << "    -nmi, -normalized-mutual-info" << endl;
+     ***  out << "    -nlw, -normwin, -normalize-local-window" << endl;
+     ***  out << "    -normpdf" << endl;
+     out << "    -noround" << endl;
+     out << "    -nospm" << endl;
+     out << "    -o" << endl;
+     out << "    -omc, -output-multicomponent" << endl;
+     out << "    -oo, -output-multiple" << endl;
+    out << "    -orient" << endl;
+    out << "    -origin" << endl;
+    out << "    -origin-voxel" << endl;
+    out << "    -overlap" << endl;
+    out << "    -overlay-label-image, -oli" << endl;
+    out << "    -pad" << endl;
+    out << "    -percent-intensity-mode, -pim" << endl;
+    ***  out << "    -pixel" << endl;
+    out << "    -pop" << endl;
+    out << "    -popas" << endl;
+    out << "    -probe" << endl;
+    out << "    -push, -get" << endl;
+    out << "    -rank" << endl;
+    out << "    -reciprocal" << endl;
+    out << "    -region" << endl;
+    out << "    -reorder" << endl;
+    out << "    -replace" << endl;
+    out << "    -resample" << endl;
+    out << "    -resample-mm" << endl;
+    out << "    -reslice-itk" << endl;
+    out << "    -reslice-matrix" << endl;
+    out << "    -reslice-identity" << endl;
+    ***  out << "    -rf-train" << endl;
+    ***  out << "    -rf-apply" << endl;
+    out << "    -rms" << endl;
+    out << "    -round" << endl;
+    out << "    -scale" << endl;
+    out << "    -set-sform" << endl;
+    out << "    -shift" << endl;
+    out << "    -signed-distance-transform, -sdt" << endl;
+    out << "    -sin" << endl;
+    out << "    -slice" << endl;
+    out << "    -smooth" << endl;
+    out << "    -spacing" << endl;
+    out << "    -split" << endl;
+    out << "    -sqrt" << endl;
+    out << "    -staple" << endl;
+    out << "    -spm" << endl;
+    out << "    -stretch" << endl;
+    ***  out << "    -subtract" << endl;
+    ***  out << "    -supervoxel, -sv" << endl;
+    out << "    -test-image" << endl;
+    out << "    -test-probe" << endl;
+    out << "    -threshold, -thresh" << endl;
+    out << "    -tile" << endl;
+    out << "    -trim" << endl;
+    out << "    -trim-to-size" << endl;
+    out << "    -type" << endl;
+    out << "    -verbose" << endl;
+    ***  out << "    -version" << endl;
+    out << "    -vote" << endl;
+    out << "    -vote-label" << endl;
+    out << "    -voxel-sum" << endl;
+    out << "    -voxel-integral, -voxel-int" << endl;
+    out << "    -voxelwise-regression, -voxreg" << endl;
+    out << "    -warp" << endl;
+    out << "    -wrap" << endl;
+    out << "    -weighted-sum, -wsum" << endl;
+    out << "    -weighted-sum-voxelwise, -wsv" << endl;
+    */
+
+/**
+ * Parameters for the various algorithms. Stored in a separate structure 
+ * in order to reduce number of variables declared in the header
+ */
+template <class TPixel, unsigned int VDim>
+struct ConvertAlgorithmParameters
+{
+  // Root mean square error for anti-aliasing algorithm
+  double m_AntiAliasRMS;
+
+  // Level set algorithm parameters
+  LevelSetParameters m_LevelSet;
+
+  // Random forest parameters
+  RFParameters<TPixel, VDim> m_RandomForest;
+
+  ConvertAlgorithmParameters()
+    {
+    m_AntiAliasRMS = 0.07;
+    }
+};
 
 
 template<class TPixel, unsigned int VDim>
@@ -111,14 +349,17 @@ ImageConverter<TPixel,VDim>
   m_Background = 0.0;
   m_RoundFactor = 0.5;
   m_FlagSPM = false;
+  m_UseCompression = false;
   m_MultiComponentSplit = false;
-  m_AntiAliasRMS = 0.07;
   m_Iterations = 0;
   m_LoopType = LOOP_NONE;
   m_PercentIntensityMode = PIM_QUANTILE;
 
-  m_LevSetCurvature = 0.2;
-  m_LevSetAdvection = 0.0;
+  // Create the parameters
+  m_Param = new ParameterType();
+
+  // Documentation initially NULL to not waste time parsing it
+  m_Documentation = NULL;
 
   // Create an interpolator
   m_Interpolation = "linear";
@@ -136,146 +377,79 @@ ImageConverter<TPixel,VDim>
   n4_optimal_scaling=true;
   n4_output_field=false;
   
+
+  // Set orientation and coordinate tolerances to something more
+  // reasonable than the ITK defaults
+  itk::ImageToImageFilterCommon::SetGlobalDefaultCoordinateTolerance(1.0e-4);
+  itk::ImageToImageFilterCommon::SetGlobalDefaultDirectionTolerance(1.0e-4);
 }
+
+
+template<class TPixel, unsigned int VDim>
+ImageConverter<TPixel,VDim>
+::~ImageConverter()
+{
+  delete m_Param;
+  if(m_Documentation)
+    delete m_Documentation;
+}
+
+
+
 
 template<class TPixel, unsigned int VDim>
 void
 ImageConverter<TPixel, VDim>
 ::PrintCommandListing(std::ostream &out)
 {
-  out << "Command Listing: " << endl;
-  out << "    -accum" << endl;
-  out << "    -add" << endl;
-  out << "    -align-landmarks, -alm" << endl;
-  out << "    -anisotropic-diffusion, -ad" << endl;
-  out << "    -antialias, -alias" << endl;
-  out << "    -as, -set" << endl;
-  out << "    -background" << endl;
-  out << "    -n3, -biascorr" << endl;
-  out << "    -binarize" << endl;
-  out << "    -centroid" << endl;
-  out << "    -clear" << endl;
-  out << "    -clip" << endl;
-  out << "    -colormap, -color-map" << endl;
-  out << "    -connected-components, -connected, -comp" << endl;
-  out << "    -coordinate-map-voxel, -cmv" << endl;
-  out << "    -coordinate-map-physical, -cmp" << endl;
-  out << "    -copy-transform, -ct" << endl;
-  out << "    -create" << endl;
-  out << "    -dilate" << endl;
-  out << "    -divide" << endl;
-  out << "    -dup" << endl;
-  out << "    -endaccum" << endl;
-  out << "    -endfor" << endl;
-  out << "    -erode" << endl;
-  out << "    -erf" << endl;
-  out << "    -exp" << endl;
-  out << "    -fft" << endl;
-  out << "    -flip" << endl;
-  out << "    -foreach" << endl;
-  out << "    -glm" << endl;
-  out << "    -histmatch, -histogram-match" << endl;
-  out << "    -holefill, -hf" << endl;
-  out << "    -info" << endl;
-  out << "    -info-full" << endl;
-  out << "    -insert, -ins" << endl;
-  out << "    -interpolation, -interp, -int" << endl;
-  out << "    -iterations" << endl;
-  out << "    -label-overlap" << std::endl;
-  out << "    -label-statistics, -lstat" << endl;
-  out << "    -landmarks-to-spheres, -lts" << endl;
-  out << "    -laplacian, -laplace" << endl;
-  out << "    -levelset" << endl;
-  out << "    -levelset-curvature" << endl;
-  out << "    -levelset-advection" << endl;
-  out << "    -ln, -log" << endl;
-  out << "    -log10" << endl;
-  out << "    -max, -maximum" << endl;
-  out << "    -mcs, -multicomponent-split" << endl;
-  out << "    -mean" << endl;
-  out << "    -merge" << endl;
-  out << "    -mi, -mutual-info" << endl;
-  out << "    -min, -minimum" << endl;
-  out << "    -mixture, -mixture-model" << endl;
-  out << "    -multiply, -times" << endl;
-  out << "    -n4, -n4-bias-correction" << endl;
+  if(!m_Documentation)
+    m_Documentation = new Documentation(c3d_md);
 
-  out << "    -n4_spline_distance <d1[,d2,d3]>mm" << endl;
-  out << "    -n4_shrink_factor <n>" << endl;
-  out << "    -n4_spline_order <n>" << endl;
-  out << "    -n4_histogram_bins <n>" << endl;
-  out << "    -n4_fwhm <f>" << endl;
-  out << "    -n4_convergence_threshold <f>" << endl;
-  out << "    -n4_weiner_noise <f>" << endl;
-  out << "    -n4_max_iterations <n>" << endl;
-  out << "    -n4_optimal_scaling <0/1>" << endl;
-  out << "    -n4_output_field <0/1>" << endl;
-  out << "    -n4_use_mask <0/1>" << endl;
+  // Print the automatically generated command listing
+  m_Documentation->PrintCommandListing(out);
 
-  out << "    -ncc, -normalized-cross-correlation" << endl;
-  out << "    -nmi, -normalized-mutual-info" << endl;
-  out << "    -nlw, -normwin, -normalize-local-window" << endl;
-  out << "    -normpdf" << endl;
-  out << "    -noround" << endl;
-  out << "    -nospm" << endl;
-  out << "    -o" << endl;
-  out << "    -omc, -output-multicomponent" << endl;
-  out << "    -oo, -output-multiple" << endl;
-  out << "    -orient" << endl;
-  out << "    -origin" << endl;
-  out << "    -origin-voxel" << endl;
-  out << "    -overlap" << endl;
-  out << "    -overlay-label-image, -oli" << endl;
-  out << "    -pad" << endl;
-  out << "    -percent-intensity-mode, -pim" << endl;
-  out << "    -pixel" << endl;
-  out << "    -pop" << endl;
-  out << "    -popas" << endl;
-  out << "    -probe" << endl;
-  out << "    -push, -get" << endl;
-  out << "    -rank" << endl;
-  out << "    -reciprocal" << endl;
-  out << "    -region" << endl;
-  out << "    -reorder" << endl;
-  out << "    -replace" << endl;
-  out << "    -resample" << endl;
-  out << "    -resample-mm" << endl;
-  out << "    -reslice-itk" << endl;
-  out << "    -reslice-matrix" << endl;
-  out << "    -reslice-identity" << endl;
-  out << "    -rms" << endl;
-  out << "    -round" << endl;
-  out << "    -scale" << endl;
-  out << "    -set-sform" << endl;
-  out << "    -shift" << endl;
-  out << "    -signed-distance-transform, -sdt" << endl;
-  out << "    -slice" << endl;
-  out << "    -smooth" << endl;
-  out << "    -spacing" << endl;
-  out << "    -split" << endl;
-  out << "    -sqrt" << endl;
-  out << "    -staple" << endl;
-  out << "    -spm" << endl;
-  out << "    -stretch" << endl;
-  out << "    -subtract" << endl;
-  out << "    -test-image" << endl;
-  out << "    -test-probe" << endl;
-  out << "    -threshold, -thresh" << endl;
-  out << "    -tile" << endl;
-  out << "    -trim" << endl;
-  out << "    -trim-to-size" << endl;
-  out << "    -type" << endl;
-  out << "    -verbose" << endl;
-  out << "    -version" << endl;
-  out << "    -vote" << endl;
-  out << "    -vote-label" << endl;
-  out << "    -voxel-sum" << endl;
-  out << "    -voxel-integral, -voxel-int" << endl;
-  out << "    -voxelwise-regression, -voxreg" << endl;
-  out << "    -warp" << endl;
-  out << "    -wrap" << endl;
-  out << "    -weighted-sum, -wsum" << endl;
-  out << "    -weighted-sum-voxelwise, -wsv" << endl;
+  // Print additional information on getting help
+  out << "Getting help:" << std::endl;
+
+  out << "    " 
+    << std::setw(32) << std::left 
+    << "-h"
+    << ": List commands" << std::endl;
+
+  out << "    " 
+    << std::setw(32) << std::left 
+    << "-h command"
+    << ": Print help on command (e.g. -h add)" << std::endl;
+
+  out << "    " 
+    << std::setw(32) << std::left 
+    << "-manual"
+    << ": Print complete reference manual" << std::endl;
+}
+
+template<class TPixel, unsigned int VDim>
+void
+ImageConverter<TPixel, VDim>
+::PrintCommandHelp(std::ostream &out, const char *command)
+{
+  if(!m_Documentation)
+    m_Documentation = new Documentation(c3d_md);
+
+  if(!m_Documentation->PrintCommandHelp(out, command))
+    {
+    out << "No help available for command " << command << std::endl;
+    }
+}
+
+template<class TPixel, unsigned int VDim>
+void
+ImageConverter<TPixel, VDim>
+::PrintManual(std::ostream &out)
+{
+  if(!m_Documentation)
+    m_Documentation = new Documentation(c3d_md);
+
+  m_Documentation->PrintManual(out);
 }
 
 template<class TPixel, unsigned int VDim>
@@ -296,6 +470,13 @@ ImageConverter<TPixel, VDim>
 
     this->m_LoopType = LOOP_ACCUM;
     return this->AccumulateLoop(argc, argv);
+    }
+
+  else if (cmd == "-acos")
+    {
+    UnaryMathOperation<TPixel, VDim> adapter(this);
+    adapter(&vcl_acos);
+    return 0;
     }
 
   else if (cmd == "-add")
@@ -329,7 +510,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-antialias" || cmd == "-alias")
     {
     AntiAliasImage<TPixel, VDim> adapter(this);
-    adapter(atof(argv[1]));
+    adapter(atof(argv[1]), m_Param->m_AntiAliasRMS);
     return 1;
     }
 
@@ -344,6 +525,20 @@ ImageConverter<TPixel, VDim>
     return 1;
     }
 
+  else if (cmd == "-asin")
+    {
+    UnaryMathOperation<TPixel, VDim> adapter(this);
+    adapter(&vcl_asin);
+    return 0;
+    }
+
+  else if (cmd == "-atan2")
+    {
+    BinaryMathOperation<TPixel, VDim> adapter(this);
+    adapter(BinaryMathOperation<TPixel, VDim>::ATAN2);
+    return 0;
+    }
+
   else if (cmd == "-background")
     {
     m_Background = atof(argv[1]);
@@ -351,14 +546,7 @@ ImageConverter<TPixel, VDim>
     return 1;
     }
 
-  else if (cmd == "-n3" || cmd == "-biascorr")
-    {
-    BiasFieldCorrection<TPixel, VDim> adapter(this);
-    adapter();
-    return 0;
-    }
-
-  else if (cmd == "-n4" || cmd == "-n4-bias-correction" )
+  else if (cmd == "-biascorr" || cmd == "-n4" || cmd == "-n4-bias-correction" )
     {
     BiasFieldCorrectionN4<TPixel, VDim> adapter(this);
     adapter();
@@ -461,11 +649,38 @@ ImageConverter<TPixel, VDim>
     return 0;
     }
 
+  else if (cmd == "-canny")
+    {
+    Canny<TPixel, VDim> adapter(this);
+    RealVector sigma = ReadRealSize(argv[1]);
+    double tLower = ReadIntensityValue(argv[1]);
+    double tUpper = ReadIntensityValue(argv[3]);
+
+    adapter(sigma, tLower, tUpper);
+    return 3;
+    }
+
+  else if (cmd == "-ceil")
+    {
+    UnaryMathOperation<TPixel, VDim> adapter(this);
+    adapter(&vcl_ceil);
+    return 0;
+    }
+
+
   else if (cmd == "-centroid")
     {
     BinaryImageCentroid<TPixel, VDim> adapter(this);
     adapter();
     return 0;
+    }
+
+  else if (cmd == "-centroid-mark")
+    {
+    double mark_value = atof(argv[1]);
+    BinaryImageCentroid<TPixel, VDim> adapter(this);
+    adapter(mark_value);
+    return 1;
     }
 
   else if (cmd == "-connected-components" || cmd == "-connected" || cmd == "-comp")
@@ -497,6 +712,24 @@ ImageConverter<TPixel, VDim>
     return 1;
     }
 
+  else if (cmd == "-compress")
+    {
+    m_UseCompression = true;
+    return 0;
+    }
+
+  else if (cmd == "-no-compress")
+    {
+    m_UseCompression = false;
+    return 0;
+    }
+
+  else if (cmd == "-conv")
+    {
+    Convolution<TPixel,VDim>(this)();
+    return 0;
+    }
+
   else if (cmd == "-coordinate-map-voxel" || cmd == "-cmv")
     {
     CoordinateMap<TPixel,VDim>(this)(false);
@@ -516,6 +749,13 @@ ImageConverter<TPixel, VDim>
     return 0;
     }
 
+  else if (cmd == "-cos")
+    {
+    UnaryMathOperation<TPixel, VDim> adapter(this);
+    adapter(&vcl_cos);
+    return 0;
+    }
+
   // Create a new image with given size and voxel size
   else if (cmd == "-create")
     {
@@ -523,6 +763,26 @@ ImageConverter<TPixel, VDim>
     RealVector voxel = ReadRealSize(argv[2]);
     CreateImage<TPixel, VDim> adapter(this);
     adapter(dims, voxel);
+    return 2;
+    }
+
+  else if (cmd == "-dicom-series-list")
+    {
+    DicomSeriesList<TPixel, VDim> adapter(this);
+    adapter(argv[1]);
+    return 1;
+    }
+
+  else if (cmd == "-dicom-series-read")
+    {
+    typedef ReadImage<TPixel, VDim> Adapter;
+    typename Adapter::ImageInfo info;
+
+    info.dicom_series_id = argv[2];
+
+    Adapter adapter(this);
+    adapter(argv[1], info);
+
     return 2;
     }
 
@@ -587,6 +847,40 @@ ImageConverter<TPixel, VDim>
     return 0;
     }
 
+  else if (cmd == "-export-patches" || cmd == "-xp")
+    {
+    ExportPatches<TPixel,VDim> adapter(this);
+    std::string fn = argv[1];
+    SizeType radius = this->ReadSizeVector(argv[2]);
+    double freq = atof(argv[3]);
+    adapter(fn.c_str(), radius, freq);
+    return 3;
+    }
+
+  else if (cmd == "-export-patches-aug" || cmd == "-xpa")
+    {
+    int n_aug = atoi(argv[1]);
+    double sigma_angle = atof(argv[2]);
+    ExportPatches<TPixel,VDim>::SetAugmentationParameters(n_aug, sigma_angle);
+    return 2;
+    }
+
+  else if (cmd == "-extrude-seg") 
+    {
+    ExtrudeSegmentation<TPixel, VDim> adapter(this);
+    adapter();
+    return 0;
+    }
+
+  else if (cmd == "-fill-background-with-noise" || cmd == "-fbn")
+    {
+    FillBackgroundWithNeighborhoodNoise<TPixel, VDim> adapter(this);
+    SizeType radius = ReadSizeVector(argv[1]);
+    int steps = atoi(argv[2]);
+    adapter(radius, steps);
+    return 2;
+    }
+
   else if (cmd == "-fft")
     {
     ComputeFFT<TPixel, VDim> adapter(this);
@@ -602,12 +896,28 @@ ImageConverter<TPixel, VDim>
     return 1;
     }
 
+  else if (cmd == "-floor")
+    {
+    UnaryMathOperation<TPixel, VDim> adapter(this);
+    adapter(&vcl_floor);
+    return 0;
+    }
+
   else if (cmd == "-foreach")
     {
     if (this->m_LoopType != LOOP_NONE)
       throw ConvertException("Nested loops are not allowed");
     this->m_LoopType = LOOP_FOREACH;
     return this->ForEachLoop(argc, argv);
+    }
+
+  else if (cmd == "-foreach-comp")
+    {
+    if (this->m_LoopType != LOOP_NONE)
+      throw ConvertException("Nested loops are not allowed");
+    this->m_LoopType = LOOP_FOREACH;
+    int ncomp = atoi(argv[1]);
+    return this->ForEachComponentLoop(ncomp, argc - 1, argv + 1) + 1;
     }
 
   else if (cmd == "-glm")
@@ -619,10 +929,25 @@ ImageConverter<TPixel, VDim>
     return 2;
     }
 
-  else if (cmd == "-h")
+  else if (cmd == "-grad" || cmd == "-gradient")
     {
-    PrintCommandListing(std::cout);
+    ImageGradient<TPixel,VDim> adapter(this);
+    adapter();
     return 0;
+    }
+
+  else if (cmd == "-h" || cmd == "-help" || cmd == "--help")
+    {
+    if(argc > 1 && argv[1][0] != '-')
+      {
+      PrintCommandHelp(std::cout, argv[1]);
+      return 1;
+      }
+    else
+      {
+      PrintCommandListing(std::cout);
+      return 0;
+      }
     }
 
   else if(cmd == "-hf" || cmd == "-holefill")
@@ -634,6 +959,27 @@ ImageConverter<TPixel, VDim>
     adapter(foreground, full_conn);
 
     return 2;
+    }
+
+  else if (cmd == "-hesseig" || cmd == "-hessian-eigenvalues")
+    {
+    double scale = atof(argv[1]);
+    HessianEigenValues<TPixel,VDim> adapter(this);
+    adapter(scale);
+
+    return 1;
+    }
+
+  else if (cmd == "-hessobj" || cmd == "-hessian-objectness")
+    {
+    int dimension = atoi(argv[1]);
+    double minscale = atof(argv[2]);
+    double maxscale = atof(argv[3]);
+    
+    HessianObjectness<TPixel, VDim> adapter(this);
+    adapter(dimension, minscale, maxscale);
+
+    return 3;
     }
 
   else if (cmd == "-histmatch" || cmd == "-histogram-match")
@@ -763,19 +1109,19 @@ ImageConverter<TPixel, VDim>
     {
     int nIter = atoi(argv[1]);
     LevelSetSegmentation<TPixel, VDim> adapter(this);
-    adapter(nIter);
+    adapter(nIter, m_Param->m_LevelSet);
     return 1;
     }
 
   else if (cmd == "-levelset-curvature")
     {
-    m_LevSetCurvature = atof(argv[1]);
+    m_Param->m_LevelSet.CurvatureWeight = atof(argv[1]);
     return 1;
     }
 
   else if (cmd == "-levelset-advection")
     {
-    m_LevSetAdvection = atof(argv[1]);
+    m_Param->m_LevelSet.AdvectionWeight = atof(argv[1]);
     return 1;
     }
 
@@ -790,6 +1136,20 @@ ImageConverter<TPixel, VDim>
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
     adapter(&vcl_log10);
+    return 0;
+    }
+
+  // No else if here because of a windows compiler error (blocks nested too deeply)
+  if (cmd == "-manual")
+    {
+    this->PrintManual(std::cout);
+    return 0;
+    }
+
+  else if (cmd == "-match-bounding-box" || cmd == "-mbb")
+    {
+    MatchBoundingBoxes<TPixel,VDim> adapter(this);
+    adapter();
     return 0;
     }
 
@@ -818,11 +1178,27 @@ ImageConverter<TPixel, VDim>
     return 0;
     }
 
+  else if(cmd == "-median" || cmd == "-median-filter")
+    {
+    MedianFilter<TPixel, VDim> adapter(this);
+    SizeType radius = this->ReadSizeVector(argv[1]);
+    adapter(radius);
+    return 1;
+    }
+
   else if (cmd == "-merge")
     {
     Vote<TPixel, VDim> adapter(this);
     adapter(true);
     return 0;
+    }
+
+  else if (cmd == "-mf" || cmd == "-mean-filter")
+    {
+    MeanFilter<TPixel, VDim> adapter(this);
+    SizeType sz = ReadSizeVector(argv[1]);
+    adapter(sz);
+    return 1;
     }
 
   else if (cmd == "-mi" || cmd == "-mutual-info")
@@ -869,6 +1245,13 @@ ImageConverter<TPixel, VDim>
     adapter(mu, sigma);
 
     return 1 + 2 * ncomp;
+    }
+
+  else if (cmd == "-moments")
+    {
+    SizeType radius = ReadSizeVector(argv[1]);
+    MomentsFeatures<TPixel, VDim>(this)(radius);
+    return 1;
     }
 
   else if (cmd == "-mmi" || cmd == "-mattes-mutual-info")
@@ -963,6 +1346,38 @@ ImageConverter<TPixel, VDim>
     return nret;
     }
 
+  else if (cmd == "-noise-gaussian" || cmd == "-noise")
+    {
+    double param = atof(argv[1]);
+    ApplyNoise<TPixel, VDim> adapter(this);
+    adapter(ApplyNoise<TPixel,VDim>::GAUSSIAN, param);
+    return 1;
+    }
+
+  else if (cmd == "-noise-poisson" || cmd == "-noise-shot")
+    {
+    double param = atof(argv[1]);
+    ApplyNoise<TPixel, VDim> adapter(this);
+    adapter(ApplyNoise<TPixel,VDim>::POISSON, param);
+    return 1;
+    }
+
+  else if (cmd == "-noise-speckle")
+    {
+    double param = atof(argv[1]);
+    ApplyNoise<TPixel, VDim> adapter(this);
+    adapter(ApplyNoise<TPixel,VDim>::SPECKLE, param);
+    return 1;
+    }
+
+  else if (cmd == "-noise-salt-pepper")
+    {
+    double param = atof(argv[1]);
+    ApplyNoise<TPixel, VDim> adapter(this);
+    adapter(ApplyNoise<TPixel,VDim>::SALT_PEPPER, param);
+    return 1;
+    }
+
   else if (cmd == "-nomcs" || cmd == "-no-multicomponent-split")
     {
     m_MultiComponentSplit = false; return 0;
@@ -1038,6 +1453,15 @@ ImageConverter<TPixel, VDim>
     adapter.WriteMultiComponent(argv[np], nc);
     return np;
     }
+
+  else if (cmd == "-oomc" || cmd == "-output-multiple-multicomponent")
+    {
+    // The number of components must be specified
+    int nc = atoi(argv[1]);
+
+    // Write the rest
+    return 1 + this->WriteMultiple(argc-1, argv+1, nc, cmd.c_str());
+    }
   
   else if (cmd == "-orient")
     {
@@ -1049,44 +1473,7 @@ ImageConverter<TPixel, VDim>
   // Write mulptiple images
   else if (cmd == "-oo" || cmd == "-output-multiple")
     {
-    // Check if the argument is a printf pattern
-    char buffer[1024];
-    sprintf(buffer, argv[1],0);
-    if (strcmp(buffer, argv[1]))
-      {
-      // A pattern is specified. For each image on the stack, use pattern
-      for(size_t i = 0; i < m_ImageStack.size(); i++)
-        {
-        sprintf(buffer, argv[1], i);
-        WriteImage<TPixel, VDim> adapter(this);
-        adapter(buffer, true, i);
-        }
-      return 1;
-      }
-    else
-      {
-      // Filenames are specified. Find out how many there are
-      size_t nfiles = 0;
-      for(int i = 1; i < argc; i++)
-        {
-        if (argv[i][0] != '-') nfiles++; else break;
-        }
-
-
-      if (nfiles == 0)
-        throw ConvertException("No files specified to -oo command");
-
-      if (nfiles > m_ImageStack.size())
-        throw ConvertException("Too many files specified to -oo command");
-
-      for(size_t j = 0; j < nfiles; j++)
-        {
-        WriteImage<TPixel, VDim> adapter(this);
-        adapter(argv[j+1], true, m_ImageStack.size() - nfiles + j);
-        }
-
-      return nfiles;
-      }
+    return this->WriteMultiple(argc, argv, 1, cmd.c_str());
     }
 
   else if (cmd == "-orient")
@@ -1103,6 +1490,7 @@ ImageConverter<TPixel, VDim>
 
   else if (cmd == "-origin")
     {
+    // The first parameter is the origin (new physical coordinate of the voxel)
     RealVector org = ReadRealVector(argv[1], true);
     m_ImageStack.back()->SetOrigin(org.data_block());
     return 1;
@@ -1110,16 +1498,45 @@ ImageConverter<TPixel, VDim>
 
   else if (cmd == "-origin-voxel")
     {
+    // Read the physical RAS coordinate of the voxel that should be made the origin
     RealVector vec = ReadRealVector(argv[1], false);
-    cout << "VOX : " << vec << endl;
+
+    // This voxel should have the coordinate zero
+    for (int i = 0; i <  VDim; i++)
+      {
+      // Here we are making the RAS/LPS switch and inverting the coordinate
+      vec[i] = (i >= 2) ? -vec[i] : vec[i];
+      }
 
     // Get physical coordinate of this voxel
-    vnl_matrix_fixed<double, VDim+1, VDim+1> mat = 
-      m_ImageStack.back()->GetVoxelSpaceToRASPhysicalSpaceMatrix().GetVnlMatrix();
-    RealVector org = -vec;
-    m_ImageStack.back()->SetOrigin(org.data_block());
-    cout << "ORG : " << org << endl;
+    m_ImageStack.back()->SetOrigin(vec.data_block());
     return 1;
+    }
+
+  else if (cmd == "-origin-voxel-coord")
+    {
+    // Read the index the voxel whose coordinate we want to assign
+    IndexType voxel = ReadIndexVector(argv[1]);
+
+    // Read the new NIFTI coordinate of this position
+    RealVector coord = ReadRealVector(argv[2], true);
+
+    // Get the LPS coordinate of the voxel under the current origin
+    typename ImageType::PointType lps_curr, lps_desired, lps_origin;
+    m_ImageStack.back()->TransformIndexToPhysicalPoint(voxel, lps_curr);
+
+    // Get the LPS coordinate that we want to assign to the voxel
+    // The origin should be shifted by (lps_desired - lps_curr)
+    for(int i = 0; i < VDim; i++)
+      {
+      lps_desired[i] = (i < 2) ? -coord[i] : coord[i];
+      lps_origin[i] = m_ImageStack.back()->GetOrigin()[i] + lps_desired[i] - lps_curr[i];
+      }
+
+    // Assign the origin
+    m_ImageStack.back()->SetOrigin(lps_origin);
+
+    return 2;
     }
 
   else if (cmd == "-overlap")
@@ -1158,7 +1575,37 @@ ImageConverter<TPixel, VDim>
     return 3;
     }
 
-  if (cmd == "-percent-intensity-mode" || cmd == "-pim")
+  else if (cmd == "-padto" || cmd == "-pad-to")
+    {
+    // Specify the size to which the image should be padded
+    SizeType padNewSize = ReadSizeVector(argv[1]);
+    float padValue = atof(argv[2]);
+
+    // How much to add in each dimension
+    IndexType padExtentLower, padExtentUpper;
+    SizeType currentSize = this->PeekLastImage()->GetBufferedRegion().GetSize();
+    for(int i = 0; i < VDim; i++)
+      {
+      // Constraint: lower + upper = desired - current
+      long bilateral_pad = padNewSize[i] - currentSize[i];
+      padExtentLower[i] = bilateral_pad / 2;
+      padExtentUpper[i] = bilateral_pad - padExtentLower[i];
+      }
+
+    // Use the adapter
+    PadImage<TPixel, VDim> adapter(this);
+    adapter(padExtentLower, padExtentUpper, padValue);
+    return 2;
+    }
+
+  else if (cmd == "-pca")
+    {
+    ComputeMoments<TPixel, VDim> adapter(this);
+    adapter();
+    return 0; 
+    }
+
+  else if (cmd == "-percent-intensity-mode" || cmd == "-pim")
     {
     // What does % mean when specifying intensities
     string pim = str_to_lower(argv[1]);
@@ -1273,6 +1720,80 @@ ImageConverter<TPixel, VDim>
 
     }
 
+  else if (cmd == "-retain-labels")
+    {
+    // Parse the labels
+    std::vector<int> vRetain;
+    for(int i = 1; i < argc; i++)
+      {
+      try
+        { vRetain.push_back((int) myatol(argv[i])); }
+      catch(...)
+        { break; }
+      }
+
+    // Replace the intensities with values supplie
+    RetainLabels<TPixel, VDim> adapter(this);
+    adapter(vRetain);
+
+    return vRetain.size();
+    }
+
+  else if (cmd == "-rf-apply")
+    {
+    // Get the filename for the training output
+    std::string rf_file = argv[1];
+
+    // Get the current parameters
+    RFApply<TPixel, VDim> adapter(this);
+    adapter(rf_file.c_str());
+
+    return 1;
+    }
+
+  else if (cmd == "-rf-train")
+    {
+    // Get the filename for the training output
+    std::string rf_file = argv[1];
+
+    // Get the current parameters
+    RFTrain<TPixel, VDim> adapter(this);
+    adapter(rf_file.c_str(), m_Param->m_RandomForest);
+
+    return 1;
+    }
+
+  else if (cmd == "-rf-param-patch")
+    {
+    SizeType patch_radius = ReadSizeVector(argv[1]);
+    m_Param->m_RandomForest.patch_radius = patch_radius;
+    return 1;
+    }
+
+  else if (cmd == "-rf-param-usexyz")
+    {
+    m_Param->m_RandomForest.use_coordinate_features = true;
+    return 0;
+    }
+
+  else if (cmd == "-rf-param-nousexyz")
+    {
+    m_Param->m_RandomForest.use_coordinate_features = false;
+    return 0;
+    }
+
+  else if (cmd == "-rf-param-ntrees")
+    {
+    m_Param->m_RandomForest.forest_size = atoi(argv[1]);
+    return 1;
+    }
+
+  else if (cmd == "-rf-param-treedepth")
+    {
+    m_Param->m_RandomForest.tree_depth = atoi(argv[1]);
+    return 1;
+    }
+
   else if (cmd == "-set-sform")
     {
     string fn_tran( argv[1] );
@@ -1321,6 +1842,26 @@ ImageConverter<TPixel, VDim>
     return 1;
     }
 
+  else if (cmd == "-resample-iso")
+    {
+    typename ImageType::SpacingType spc =  this->PeekImage(0)->GetSpacing();
+    std::string mode = argv[1];
+    double isospc = 0.0;
+    if(mode == "min" || mode == "MIN")
+      isospc = spc.GetVnlVector().min_value();
+    else if(mode == "max" || mode == "MAX")
+      isospc = spc.GetVnlVector().max_value();
+    else
+      throw ConvertException("Unsupported mode '%s' for command %s", argv[1], cmd.c_str());
+
+    SizeType sz = this->PeekImage(0)->GetBufferedRegion().GetSize();
+    for(size_t i = 0; i < VDim; i++)
+      sz[i] = static_cast<size_t>((0.5 + sz[i] * spc[i] / isospc));
+    ResampleImage<TPixel, VDim> adapter(this);
+    adapter(sz);
+    return 1;
+    }
+
   else if (cmd == "-resample-mm")
     {
     RealVector vox = ReadRealSize(argv[1]);
@@ -1357,13 +1898,21 @@ ImageConverter<TPixel, VDim>
     return 0;
     }
 
+  else if (cmd == "-rgb2hsv")
+    {
+    VoxelwiseComponentFunction<TPixel, VDim> adapter(this);
+    adapter("rgb2hsv");
+    return 0;
+    }
+
   else if (cmd == "-rms")
-    { m_AntiAliasRMS = atof(argv[1]); return 1; }
+    { m_Param->m_AntiAliasRMS = atof(argv[1]); return 1; }
 
   else if (cmd == "-round")
     { m_RoundFactor = 0.5; return 0; }
 
-  else if (cmd == "-scale")
+  // No else if here because of a windows compiler error (blocks nested too deeply)
+  if (cmd == "-scale")
     {
     double factor = atof(argv[1]);
     ScaleShiftImage<TPixel, VDim> adapter(this);
@@ -1383,15 +1932,42 @@ ImageConverter<TPixel, VDim>
     return 1;
     }
 
+  else if (cmd == "-sin")
+    {
+    UnaryMathOperation<TPixel, VDim> adapter(this);
+    adapter(&vcl_sin);
+    return 0;
+    }
+
   else if (cmd == "-slice")
     {
     string axis( argv[1] );
     char * pos = argv[2];
 
     ExtractSlice<TPixel, VDim> adapter(this);
-    adapter(axis, pos);
+    adapter(axis, pos, 1);
 
     return 2;
+    }
+
+  else if (cmd == "-slice-all")
+    {
+    string axis( argv[1] );
+    char * pos = argv[2];
+
+    ExtractSlice<TPixel, VDim> adapter(this);
+    adapter(axis, pos, this->GetStackSize());
+
+    return 2;
+    }
+
+
+  else if (cmd == "-sharpen")
+    {
+    LaplacianSharpening<TPixel,VDim> adapter(this);
+    adapter();
+
+    return 0;
     }
 
   else if (cmd == "-shift")
@@ -1414,7 +1990,15 @@ ImageConverter<TPixel, VDim>
     {
     RealVector stdev = ReadRealSize(argv[1]);
     SmoothImage<TPixel, VDim> adapter(this);
-    adapter(stdev);
+    adapter(stdev, false);
+    return 1;
+    }
+
+  else if (cmd == "-smooth-fast")
+    {
+    RealVector stdev = ReadRealSize(argv[1]);
+    SmoothImage<TPixel, VDim> adapter(this);
+    adapter(stdev, true);
     return 1;
     }
 
@@ -1448,6 +2032,16 @@ ImageConverter<TPixel, VDim>
     return 1;
     }
 
+  else if (cmd == "-steig" || cmd == "-structure-tensor-eigenvalues")
+    {
+    double scale_grad = atof(argv[1]);
+    double scale_window = atof(argv[2]);
+    StructureTensorEigenValues<TPixel,VDim> adapter(this);
+    adapter(scale_grad, scale_window);
+
+    return 2;
+    }
+
   // Enable SPM extensions
   else if (cmd == "-spm")
     { m_FlagSPM = true; return 0; }
@@ -1457,6 +2051,15 @@ ImageConverter<TPixel, VDim>
     BinaryMathOperation<TPixel, VDim> adapter(this);
     adapter(BinaryMathOperation<TPixel, VDim>::SUBTRACT);
     return 0;
+    }
+
+  else if (cmd == "-supervoxel" || cmd == "-sv")
+    {
+    SLICSuperVoxel<TPixel,VDim> adapter(this);
+    int samples = atoi(argv[1]);
+    double m = atof(argv[2]);
+    adapter(samples, m);
+    return 2;
     }
 
   // Stretch the intensity range
@@ -1471,6 +2074,17 @@ ImageConverter<TPixel, VDim>
     ScaleShiftImage<TPixel, VDim> adapter(this);
     adapter(a, b);
     return 4;
+    }
+
+  else if (cmd == "-swapdim") 
+    {
+    // For now we only support a single string
+    std::vector<std::string> code;
+    code.push_back(argv[1]);
+    SwapDimensions<TPixel, VDim> adapter(this);
+    adapter(code);
+
+    return 1;
     }
 
 
@@ -1575,6 +2189,9 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-verbose")
     { verbose = &std::cout; return 0; }
 
+  else if (cmd == "-noverbose")
+    { verbose = &devnull; return 0; }
+
   else if (cmd == "-version")
     {
     cout << "Version " << ImageConverter_VERSION_STRING << endl;
@@ -1590,10 +2207,20 @@ ImageConverter<TPixel, VDim>
 
   else if (cmd == "-vote-mrf")
     {
-    double beta = atof(argv[1]);
-    size_t iter = atoi(argv[2]);
-    MRFVote<TPixel, VDim> adapter(this);
-    adapter(beta, iter, false);
+    std::string mode_str = str_to_lower(argv[1]);
+    double beta = atof(argv[2]);
+
+    typedef MRFVote<TPixel, VDim> Adapter;
+    typename Adapter::Mode mode;
+    if(mode_str == "votes_against" || mode_str == "va")
+      mode = Adapter::VOTES_AGAINST;
+    else if(mode_str == "log_likelihood" || mode_str == "ll")
+      mode = Adapter::LOG_LIKELIHOOD;
+    else
+      throw ConvertException("Unknown mode parameter %s to -vote-mrf", mode_str.c_str());
+
+    Adapter adapter(this);
+    adapter(mode, beta);
     return 2;
     }
 
@@ -1668,7 +2295,7 @@ ImageConverter<TPixel, VDim>
     {
     std::vector<double> weights;
     for(int i = 1; i < argc; i++)
-      if (argv[i][0] != '-')
+      if (is_double(argv[i]))
         weights.push_back(atof(argv[i]));
       else break;
     WeightedSum<TPixel,VDim> adapter(this);
@@ -1700,13 +2327,16 @@ ImageConverter<TPixel, VDim>
   // Disable multithreading
   itk::MultiThreader::SetGlobalDefaultNumberOfThreads(1);
 
+  // The last command
+  std::string lastCommand;
+
   // Check the number of arguments
   if (argc == 1)
     {
-    cerr << "PICSL convert3d tool" << endl;
+    cerr << "PICSL convert3d tool - from the creators of ITK-SNAP" << endl;
     cerr << "For full documentation and usage examples, see" << endl;
-    cerr << "    http://www.itksnap.org/pmwiki/pmwiki.php?n=Convert3D.Documentation" << endl;
-    cerr << "For a brief summary of commands, call" << endl;
+    cerr << "    http://www.itksnap.org/c3d" << endl;
+    cerr << "To get help on available commands, call" << endl;
     cerr << "    " << argv[0] << " -h" << endl;
     return -1;
     }
@@ -1746,11 +2376,16 @@ ImageConverter<TPixel, VDim>
       string cmd = argv[i];
       if (cmd[0] == '-')
         {
+        // Save the last command (for exceptions, etc)
+        lastCommand = argv[i];
+
         // A command has been supplied
         i += ProcessCommand(argc-i, argv+i);
         }
       else
         {
+        lastCommand = "";
+
         // An image file name has been provided. If this image is followed by commands
         // read it and push in the pipeline.
         if (i != argc-1)
@@ -1768,15 +2403,31 @@ ImageConverter<TPixel, VDim>
       }
     return 0;
     }
+  catch (StackAccessException &)
+    {
+    cerr << "Not enough images on the stack for the requested command." << endl;
+    cerr << "  Requested command: " << lastCommand << endl;
+    cerr << "  Note: C3D requires image operands to precede commands." << endl;
+    cerr << "        message can be caused by incorrect usage, such as" << endl;
+    cerr << "           c3d -command image.nii " << endl;
+    cerr << "        instead of " << endl;
+    cerr << "           c3d image.nii -command" << endl;
+    return -1;
+    }
+  
   catch (std::exception &exc)
     {
     cerr << "Exception caught of type " << typeid(exc).name() << endl;
-    cerr << "What: " << exc.what() << endl;
+    if(lastCommand.size())
+      cerr << "  When processing command: " << lastCommand << endl;
+    cerr << "  Exception detail: " << exc.what() << endl;
     return -1;
     }
   catch (...)
     {
     cerr << "Unknown exception caught by convert3d" << endl;
+    if(lastCommand.size())
+      cerr << "  When processing command: " << lastCommand << endl;
     return -1;
     }
 }
@@ -1961,7 +2612,7 @@ ImageConverter<TPixel, VDim>
       // Get the quantile
       size_t k = (size_t) (qtile * np);
       val = asort[k];
-      delete asort;
+      delete[] asort;
 
       if (m_PercentIntensityMode == PIM_QUANTILE)
         *verbose << "Quantile " << qtile << " maps to " << val << endl;
@@ -1997,7 +2648,7 @@ ImageConverter<TPixel, VDim>
 ::ReadSizeVector(const char *vec_in)
 {
   // Create a copy of the input string
-  char *vec = new char[strlen(vec_in)];
+  char *vec = new char[strlen(vec_in) + 1];
   strcpy(vec, vec_in);
 
   size_t i;
@@ -2041,7 +2692,7 @@ ImageConverter<TPixel, VDim>
       }
     }
 
-  delete vec;
+  delete[] vec;
   return sz;
 }
 
@@ -2092,7 +2743,7 @@ ImageConverter<TPixel, VDim>
       }
     }
 
-  delete vec;
+  delete[] vec;
   return idx;
 }
 
@@ -2154,6 +2805,58 @@ ImageConverter<TPixel, VDim>
     }
 }
 
+
+template<class TPixel, unsigned int VDim>
+size_t
+ImageConverter<TPixel, VDim>
+::ForEachComponentLoop(int ncomp, int argc, char *argv[])
+{
+  size_t narg = 0;
+
+  // Allow looping by components, each run of the loop applies to all the 1st, 2nd, 3rd, etc
+  // components of a multicomponent image. 
+
+  // Back up the current stack
+  ImageStack<ImageType> in_stack = m_ImageStack, out_stack;
+
+  // Print out what's going on
+  *verbose << "Repeating commands for all " << in_stack.size() << " images in batches of " << ncomp << endl;
+
+  // Make sure the stack is divisible
+  if(in_stack.size() % ncomp != 0)
+    throw ConvertException("Number of images on the stack (%d) is not divisible by stride (%d)",
+      in_stack.size(), ncomp);
+
+  // Loop over the component
+  for(int comp = 0; comp < ncomp; comp++)
+    {
+    // Put the column of component images on the stack
+    m_ImageStack.clear();
+    for(int j = comp; j < in_stack.size(); j+=ncomp)
+      {
+      m_ImageStack.push_back(in_stack[j]);
+      }
+
+    // Set the in-loop flag
+    m_LoopType = LOOP_FOREACH;
+
+    // When the -endfor is encountered, the InLoop flag will be switched
+    narg = 1;
+    while(m_LoopType == LOOP_FOREACH)
+      narg += 1 + this->ProcessCommand(argc-narg, argv+narg);
+
+    // Place the result (if any) on the output stack
+    for(int k = 0; k < m_ImageStack.size(); k++)
+      out_stack.push_back(m_ImageStack.back());
+    }
+
+  // Update the stack
+  m_ImageStack = out_stack;
+
+  // Return the number of arguments to the next command
+  return narg - 1;
+}
+
 template<class TPixel, unsigned int VDim>
 size_t
 ImageConverter<TPixel, VDim>
@@ -2165,7 +2868,7 @@ ImageConverter<TPixel, VDim>
   // a state variable to repeat a range of command a bunch of times
 
   // Back up the current stack
-  vector<ImagePointer> in_stack = m_ImageStack, out_stack;
+  ImageStack<ImageType> in_stack = m_ImageStack, out_stack;
 
   // Print out what's going on
   *verbose << "Repeating commands for all " << in_stack.size() << " images" << endl;
@@ -2220,7 +2923,7 @@ ImageConverter<TPixel, VDim>
     }
 
   // Back up the current stack
-  vector<ImagePointer> in_stack = m_ImageStack;
+  ImageStack<ImageType> in_stack = m_ImageStack;
 
   // Print out what's going on
   *verbose << "Accumulating result of binary operation for all " << in_stack.size() << " images" << endl;
@@ -2334,6 +3037,186 @@ ImageConverter<TPixel, VDim>
   return true;
 }
 
+template<class TPixel, unsigned int VDim>
+void
+ImageConverter<TPixel, VDim>
+::SetVariable(std::string name, ImagePointer image)
+{
+  m_ImageVars[name] = image;
+}
+
+template<class TPixel, unsigned int VDim>
+typename ImageConverter<TPixel, VDim>::ImageType *
+ImageConverter<TPixel, VDim>
+::GetVariable(std::string name)
+{
+  if(m_ImageVars.find(name) != m_ImageVars.end())
+    return m_ImageVars[name];
+  else
+    return NULL;
+}
+
+
+template<class TPixel, unsigned int VDim>
+typename ImageConverter<TPixel, VDim>::ImagePointer
+ImageConverter<TPixel, VDim>
+::PopImage()
+{
+  if(m_ImageStack.size() == 0)
+    throw ConvertException("Attempted to pop an image from empty stack");
+
+  ImagePointer stack_end = m_ImageStack.back();
+  m_ImageStack.pop_back();
+
+  return stack_end;
+}
+
+template<class TPixel, unsigned int VDim>
+std::vector<typename ImageConverter<TPixel, VDim>::ImagePointer>
+ImageConverter<TPixel, VDim>
+::PopNImages(unsigned int n)
+{
+  if(m_ImageStack.size() < n)
+    throw ConvertException("Attempted to pop %d images from a stack of %d images", n, m_ImageStack.size());
+
+  std::vector<typename ImageConverter<TPixel, VDim>::ImagePointer> retvec(n);
+  for(int i = n-1; i >= 0; i--)
+    retvec[i] = this->PopImage();
+
+  return retvec;
+}
+
+template<class TPixel, unsigned int VDim>
+void
+ImageConverter<TPixel, VDim>
+::PushImage(ImageType *image)
+{
+  m_ImageStack.push_back(image);
+}
+
+template<class TPixel, unsigned int VDim>
+typename ImageConverter<TPixel,VDim>::ImageType *
+ImageConverter<TPixel, VDim>
+::PopAndPushCopy()
+{
+  // Pop the old image from the stack
+  ImagePointer img_old = this->PopImage();
+
+  // Create a new image that is a copy of the old
+  ImagePointer img_new = ImageType::New();
+  img_new->CopyInformation(img_old);
+  img_new->SetRegions(img_old->GetBufferedRegion());
+  img_new->Allocate();
+
+  // Copy the intensities
+  long nvox = img_new->GetPixelContainer()->Size();
+  TPixel *p_new = img_new->GetBufferPointer(), *p_old = img_old->GetBufferPointer();
+  for(long i = 0; i < nvox; i++)
+    p_new[i] = p_old[i];
+
+  // Push the copy on the stack
+  this->PushImage(img_new);
+
+  // Return the last image
+  return this->PeekLastImage();
+}
+
+
+template<class TPixel, unsigned int VDim>
+typename ImageConverter<TPixel,VDim>::ImageType *
+ImageConverter<TPixel, VDim>
+::PeekImage(int k)
+{
+  if(m_ImageStack.size() <= k || k < 0)
+    throw ConvertException("Attempted to access image outside of stack range");
+  return m_ImageStack[k];
+}
+
+template<class TPixel, unsigned int VDim>
+typename ImageConverter<TPixel,VDim>::ImageType *
+ImageConverter<TPixel, VDim>
+::PeekLastImage()
+{
+  return this->PeekImage(this->GetStackSize() - 1);
+}
+
+template<class TPixel, unsigned int VDim>
+int
+ImageConverter<TPixel, VDim>
+::GetStackSize()
+{
+  return m_ImageStack.size();
+}
+
+template<class TPixel, unsigned int VDim>
+void
+ImageConverter<TPixel, VDim>
+::PrintF(const char *fmt, ...)
+{
+  char buffer[4096];
+  va_list args;
+  va_start (args, fmt);
+  vsprintf (buffer, fmt, args);
+  va_end (args);
+
+  *this->verbose << buffer;
+}
+
+template <class TPixel, unsigned int VDim>
+int
+ImageConverter<TPixel, VDim>
+::WriteMultiple(int argc, char *argv[], int n_comp, const char *command)
+{
+  // Check if the argument is a printf pattern
+  char buffer[1024];
+  sprintf(buffer, argv[1],0);
+  if (strcmp(buffer, argv[1]))
+    {
+    // A pattern is specified. For each image on the stack, use pattern
+    for(size_t i = 0; i < m_ImageStack.size(); i+= n_comp)
+      {
+      WriteImage<TPixel, VDim> adapter(this);
+      sprintf(buffer, argv[1], i / n_comp);
+      if(n_comp == 1)
+        adapter(buffer, true, i);
+      else 
+        adapter.WriteMultiComponent(buffer, n_comp, i);
+      }
+    return 1;
+    }
+  else
+    {
+    // Filenames are specified. Find out how many there are
+    size_t nfiles = 0;
+    for(int i = 1; i < argc; i++)
+      {
+      if (argv[i][0] != '-') nfiles++; else break;
+      }
+
+    // There must be files
+    if (nfiles == 0)
+      throw ConvertException("No files specified to %s command", command);
+
+    if (nfiles * n_comp > m_ImageStack.size())
+      throw ConvertException("Too many files specified to %s command", command);
+
+    // Determine the starting position
+    int pstart = m_ImageStack.size() - nfiles * n_comp;
+
+    for(size_t j = pstart; j < m_ImageStack.size(); j+=n_comp)
+      {
+      WriteImage<TPixel, VDim> adapter(this);
+      if(n_comp == 1)
+        adapter(argv[j+1], true, j);
+      else
+        adapter.WriteMultiComponent(argv[j+1], n_comp, j);
+      }
+
+    return nfiles;
+    }
+}
+
 template class ImageConverter<double, 2>;
 template class ImageConverter<double, 3>;
+template class ImageConverter<double, 4>;
 

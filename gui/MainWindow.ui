@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
+    <width>960</width>
     <height>548</height>
    </rect>
   </property>
@@ -30,7 +30,16 @@
        <enum>QFrame::Raised</enum>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout">
-       <property name="margin">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
         <number>0</number>
        </property>
        <item>
@@ -53,7 +62,9 @@
           <string>...</string>
          </property>
          <property name="icon">
-          <iconset theme="window-new"/>
+          <iconset theme="window-new">
+           <normaloff/>
+          </iconset>
          </property>
         </widget>
        </item>
@@ -75,6 +86,9 @@
         <pointsize>12</pointsize>
        </font>
       </property>
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
      </widget>
     </item>
     <item>
@@ -85,7 +99,11 @@
      </widget>
     </item>
     <item>
-     <widget class="QPlainTextEdit" name="teOutput"/>
+     <widget class="QPlainTextEdit" name="teOutput">
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
+     </widget>
     </item>
     <item>
      <widget class="QWidget" name="widget" native="true">
@@ -104,12 +122,22 @@
         </spacer>
        </item>
        <item>
+        <widget class="QPushButton" name="btnClear">
+         <property name="text">
+          <string>Clear</string>
+         </property>
+         <property name="shortcut">
+          <string>Ctrl+Backspace</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QPushButton" name="btnRun">
          <property name="text">
           <string>Execute</string>
          </property>
          <property name="shortcut">
-          <string>Shift+Return, Ctrl+S, Ctrl+Y</string>
+          <string>Ctrl+Return</string>
          </property>
         </widget>
        </item>
@@ -123,12 +151,45 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>960</width>
      <height>22</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionPreferences"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionC3D_Manual"/>
+   </widget>
+   <widget class="QMenu" name="menuCommands">
+    <property name="title">
+     <string>Commands</string>
+    </property>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuCommands"/>
+   <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionPreferences">
+   <property name="text">
+    <string>Preferences ...</string>
+   </property>
+  </action>
+  <action name="actionC3D_Manual">
+   <property name="text">
+    <string>C3D Manual ...</string>
+   </property>
+   <property name="shortcut">
+    <string>F1</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
