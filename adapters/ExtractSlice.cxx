@@ -155,7 +155,7 @@ ExtractSlice<TPixel, VDim>
       }
     else
       {
-      slicepos = atoi(piece.c_str());
+      slicepos = std::stoi(piece.c_str());
       }
 
     pos_list.push_back(slicepos);
