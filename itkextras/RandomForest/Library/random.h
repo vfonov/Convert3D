@@ -6,7 +6,7 @@
 #define RANDOM_H
 
 #include <cstdlib>
-#include <time.h>
+#include <ctime>
 
 class Random
 {

@@ -443,7 +443,7 @@ ApplyMetric<TPixel, VDim>
       sfm -= ( sf * sm / nPixels );
       }
 
-    const double denom = -1.0 * vcl_sqrt(sff * smm );
+    const double denom = -1.0 * std::sqrt(sff * smm );
 
     if( nPixels > 0 && denom != 0.0)
       {

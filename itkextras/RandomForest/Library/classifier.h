@@ -5,7 +5,7 @@
 #ifndef CLASSIFIER_H
 #define CLASSIFIER_H
 
-#include <math.h>
+#include <cmath>
 #include "data.h"
 #include "random.h"
 #include "utility.h"

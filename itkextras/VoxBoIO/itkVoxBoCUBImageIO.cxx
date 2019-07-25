@@ -22,7 +22,7 @@
 #include <iostream>
 #include <list>
 #include <string>
-#include <math.h>
+#include <cmath>
 
 // Commented out because zlib is not available through Insight Applications
 #ifdef SNAP_GZIP_SUPPORT

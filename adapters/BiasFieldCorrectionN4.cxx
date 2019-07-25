@@ -120,7 +120,7 @@ BiasFieldCorrectionN4<TPixel, VDim>
     float domain = static_cast<float>( mri->
       GetLargestPossibleRegion().GetSize()[d] - 1 ) * mri->GetSpacing()[d];
 
-    unsigned int numberOfSpans = static_cast<unsigned int>( vcl_ceil( domain / n4_spline_distance[d] ) );
+    unsigned int numberOfSpans = static_cast<unsigned int>( std::ceil( domain / n4_spline_distance[d] ) );
 
     unsigned long extraPadding = static_cast<unsigned long>( ( numberOfSpans *
       n4_spline_distance[d] - domain ) / mri->GetSpacing()[d] + 0.5 );

@@ -72,7 +72,7 @@ public:
     R(0,2) = 2 * x * z + 2 * w * y;
     R(1,2) = 2 * y * z - 2 * w * x;
     R(2,1) = 2 * y * z + 2 * w * x;
-    std::cout << theta * 180 / vnl_math::pi << std::endl;
+    std::cout << theta * 180 / itk::Math::pi << std::endl;
     std::cout << w << "," << x << "," << y << "," << z << std::endl;
     std::cout << R << std::endl;
     }
@@ -155,7 +155,7 @@ ExportPatches<TPixel, VDim>
   FILE *f = fopen(out_file, "wb");
 
   // Are we doing augmentation?
-  double aug_sigma_angle_radians = m_AugmentationRotationSigma * vnl_math::pi / 180;
+  double aug_sigma_angle_radians = m_AugmentationRotationSigma * itk::Math::pi / 180;
 
   // Rotation matrix for augmentation
   typedef vnl_matrix_fixed<double, VDim+1, VDim+1> Mat44;

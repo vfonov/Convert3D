@@ -122,7 +122,7 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
-#include <time.h>
+#include <ctime>
 
 // Support for regular expressions via KWSYS in ITK
 #include <itksys/RegularExpression.hxx>
@@ -475,7 +475,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-acos")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_acos);
+    adapter(&std::acos);
     return 0;
     }
 
@@ -488,7 +488,7 @@ ImageConverter<TPixel, VDim>
 
   else if (cmd == "-align-landmarks" || cmd == "-alm")
     {
-    int dof = atoi(argv[1]);
+    int dof = std::stoi(argv[1]);
     std::string fnout = argv[2];
     AlignByLandmarks<TPixel,VDim> adapter(this);
     adapter(dof, fnout);
@@ -498,7 +498,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-anisotropic-diffusion" || cmd == "-ad")
     {
     double cond = atof(argv[1]);
-    int niter = atoi(argv[2]);
+    int niter = std::stoi(argv[2]);
     PeronaMalik<TPixel, VDim> adapter(this);
     adapter(cond, (size_t) niter);
     return 2;
@@ -528,7 +528,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-asin")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_asin);
+    adapter(&std::asin);
     return 0;
     }
 
@@ -663,7 +663,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-ceil")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_ceil);
+    adapter(&std::ceil);
     return 0;
     }
 
@@ -752,7 +752,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-cos")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_cos);
+    adapter(&std::cos);
     return 0;
     }
 
@@ -843,7 +843,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-exp")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_exp);
+    adapter(&std::exp);
     return 0;
     }
 
@@ -859,7 +859,7 @@ ImageConverter<TPixel, VDim>
 
   else if (cmd == "-export-patches-aug" || cmd == "-xpa")
     {
-    int n_aug = atoi(argv[1]);
+    int n_aug = std::stoi(argv[1]);
     double sigma_angle = atof(argv[2]);
     ExportPatches<TPixel,VDim>::SetAugmentationParameters(n_aug, sigma_angle);
     return 2;
@@ -876,7 +876,7 @@ ImageConverter<TPixel, VDim>
     {
     FillBackgroundWithNeighborhoodNoise<TPixel, VDim> adapter(this);
     SizeType radius = ReadSizeVector(argv[1]);
-    int steps = atoi(argv[2]);
+    int steps = std::stoi(argv[2]);
     adapter(radius, steps);
     return 2;
     }
@@ -899,7 +899,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-floor")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_floor);
+    adapter(&std::floor);
     return 0;
     }
 
@@ -916,7 +916,7 @@ ImageConverter<TPixel, VDim>
     if (this->m_LoopType != LOOP_NONE)
       throw ConvertException("Nested loops are not allowed");
     this->m_LoopType = LOOP_FOREACH;
-    int ncomp = atoi(argv[1]);
+    int ncomp = std::stoi(argv[1]);
     return this->ForEachComponentLoop(ncomp, argc - 1, argv + 1) + 1;
     }
 
@@ -953,7 +953,7 @@ ImageConverter<TPixel, VDim>
   else if(cmd == "-hf" || cmd == "-holefill")
     {
     double foreground = atof(argv[1]);
-    bool full_conn = atoi(argv[2]);
+    bool full_conn = std::stoi(argv[2]);
 
     BinaryHoleFill<TPixel, VDim> adapter(this);
     adapter(foreground, full_conn);
@@ -972,7 +972,7 @@ ImageConverter<TPixel, VDim>
 
   else if (cmd == "-hessobj" || cmd == "-hessian-objectness")
     {
-    int dimension = atoi(argv[1]);
+    int dimension = std::stoi(argv[1]);
     double minscale = atof(argv[2]);
     double maxscale = atof(argv[3]);
     
@@ -984,7 +984,7 @@ ImageConverter<TPixel, VDim>
 
   else if (cmd == "-histmatch" || cmd == "-histogram-match")
     {
-    size_t nmatch = atoi(argv[1]);
+    size_t nmatch = std::stoi(argv[1]);
     HistogramMatch<TPixel, VDim> adapter(this);
     adapter(nmatch);
     return 1;
@@ -1007,7 +1007,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-insert" || cmd == "-ins")
     {
     string var(argv[1]);
-    size_t pos = (size_t) atoi(argv[2]);
+    size_t pos = (size_t) std::stoi(argv[2]);
     typename ImageVariableMap::iterator img = m_ImageVars.find(var);
 
     // Check if the variable exists
@@ -1107,7 +1107,7 @@ ImageConverter<TPixel, VDim>
 
   else if (cmd == "-levelset")
     {
-    int nIter = atoi(argv[1]);
+    int nIter = std::stoi(argv[1]);
     LevelSetSegmentation<TPixel, VDim> adapter(this);
     adapter(nIter, m_Param->m_LevelSet);
     return 1;
@@ -1128,14 +1128,14 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-ln" || cmd == "-log")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_log);
+    adapter(&std::log);
     return 0;
     }
 
   else if (cmd == "-log10")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_log10);
+    adapter(&std::log10);
     return 0;
     }
 
@@ -1230,7 +1230,7 @@ ImageConverter<TPixel, VDim>
 
   else if (cmd == "-mixture" || cmd == "-mixture-model")
     {
-    int ncomp = atoi(argv[1]);
+    int ncomp = std::stoi(argv[1]);
     if (ncomp == 0)
       throw ConvertException("Incorrect specification of mixture model initialization");
 
@@ -1412,11 +1412,11 @@ ImageConverter<TPixel, VDim>
 
     // Exponentiate
     UnaryMathOperation<TPixel, VDim> exp1(this);
-    exp1(&vcl_exp);
+    exp1(&std::exp);
 
     // Scale by factor
     ScaleShiftImage<TPixel, VDim> scale3(this);
-    scale3(1.0 / sqrt(2 * vnl_math::pi * s * s), 0.0);
+    scale3(1.0 / sqrt(2 * itk::Math::pi * s * s), 0.0);
     return 2;
     }
 
@@ -1444,7 +1444,7 @@ ImageConverter<TPixel, VDim>
     // A parameter can be optionally specified (how many components)
     RegularExpression re("^[0-9]+$");
     if (re.find(argv[1]))
-      { nc = atoi(argv[1]); np=2; }
+      { nc = std::stoi(argv[1]); np=2; }
     else
       { nc = m_ImageStack.size(); np = 1; }
 
@@ -1457,7 +1457,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-oomc" || cmd == "-output-multiple-multicomponent")
     {
     // The number of components must be specified
-    int nc = atoi(argv[1]);
+    int nc = std::stoi(argv[1]);
 
     // Write the rest
     return 1 + this->WriteMultiple(argc-1, argv+1, nc, cmd.c_str());
@@ -1709,7 +1709,7 @@ ImageConverter<TPixel, VDim>
     if (k_frac > 0 && k_frac < 1)
       k = (size_t) (0.5 + k_frac * m_ImageStack.size());
     else if (k_frac >= 1)
-      k = (size_t) atoi(argv[1]);
+      k = (size_t) std::stoi(argv[1]);
     else
       throw ConvertException("Parameter %s to the '-reorder' command is invalid", argv[1]);
 
@@ -1784,13 +1784,13 @@ ImageConverter<TPixel, VDim>
 
   else if (cmd == "-rf-param-ntrees")
     {
-    m_Param->m_RandomForest.forest_size = atoi(argv[1]);
+    m_Param->m_RandomForest.forest_size = std::stoi(argv[1]);
     return 1;
     }
 
   else if (cmd == "-rf-param-treedepth")
     {
-    m_Param->m_RandomForest.tree_depth = atoi(argv[1]);
+    m_Param->m_RandomForest.tree_depth = std::stoi(argv[1]);
     return 1;
     }
 
@@ -1935,7 +1935,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-sin")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_sin);
+    adapter(&std::sin);
     return 0;
     }
 
@@ -2019,7 +2019,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-sqrt")
     {
     UnaryMathOperation<TPixel, VDim> adapter(this);
-    adapter(&vcl_sqrt);
+    adapter(&std::sqrt);
     return 0;
     }
 
@@ -2056,7 +2056,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-supervoxel" || cmd == "-sv")
     {
     SLICSuperVoxel<TPixel,VDim> adapter(this);
-    int samples = atoi(argv[1]);
+    int samples = std::stoi(argv[1]);
     double m = atof(argv[2]);
     adapter(samples, m);
     return 2;
@@ -2096,7 +2096,7 @@ ImageConverter<TPixel, VDim>
     int np = 0;
     RegularExpression re("^[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)$");
     if (argc > 1 && re.find(argv[1]))
-      { tol = atoi(argv[1]); np++; }
+      { tol = std::stoi(argv[1]); np++; }
 
     TestImage<TPixel, VDim> adapter(this);
     adapter(true, true, tol);
@@ -2114,7 +2114,7 @@ ImageConverter<TPixel, VDim>
     // Read the optional tolerance value
     RegularExpression re("^[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)$");
     if (argc > 1 && re.find(argv[1]))
-      { tol = atoi(argv[1]); np++; }
+      { tol = std::stoi(argv[1]); np++; }
 
     // Probe
     SampleImage<TPixel, VDim> adapter(this);
@@ -2259,7 +2259,7 @@ ImageConverter<TPixel, VDim>
   else if (cmd == "-voxelwise-regression" || cmd == "-voxreg")
     {
     // Get the order
-    size_t order = atoi(argv[1]);
+    size_t order = std::stoi(argv[1]);
     VoxelwiseRegression<TPixel, VDim> adapter(this);
     adapter(order);
     return 1;
@@ -2325,7 +2325,7 @@ ImageConverter<TPixel, VDim>
 ::ProcessCommandLine(int argc, char *argv[])
 {
   // Disable multithreading
-  itk::MultiThreader::SetGlobalDefaultNumberOfThreads(1);
+  itk::MultiThreaderBase::SetGlobalDefaultNumberOfThreads(1);
 
   // The last command
   std::string lastCommand;
@@ -2591,7 +2591,7 @@ ImageConverter<TPixel, VDim>
       for(size_t i = 0; i < n; i++, q++)
         {
         // We don't include nans and if FGQUANTILE, background values
-        if (!vnl_math_isnan(*q))
+        if (!std::isnan(*q))
           if (m_PercentIntensityMode == PIM_QUANTILE || *q != m_Background)
             {*p = *q; ++p;}
         }
@@ -2684,7 +2684,7 @@ ImageConverter<TPixel, VDim>
       {
       if (tok == NULL)
         throw ConvertException("Invalid size specification: %s", vec_in);
-      int x = atoi(tok);
+      int x = std::stoi(tok);
       if (x < 0)
         throw ConvertException("Negative size specification: %s", vec_in);
       sz[i] = (unsigned long)(x);
@@ -2737,7 +2737,7 @@ ImageConverter<TPixel, VDim>
       {
       if (tok == NULL)
         throw ConvertException("Invalid index specification: %s", vec_in);
-      int x = atoi(tok);
+      int x = std::stoi(tok);
       idx[i] = (long)(x);
       tok = strtok(NULL, "x");
       }

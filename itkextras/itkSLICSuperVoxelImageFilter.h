@@ -3,7 +3,7 @@
 
 #include "itkImageToImageFilter.h"
 #include "itkSmartPointer.h"
-#include "itkBarrier.h"
+//#include "itkBarrier.h"
 
 namespace itk {
 
@@ -53,11 +53,11 @@ protected:
   SLICSuperVoxelImageFilter();
   ~SLICSuperVoxelImageFilter() {}
 
-  void PrintSelf(std::ostream & os, Indent indent) const ITK_OVERRIDE {};
+  void PrintSelf(std::ostream & os, Indent indent) const override {};
 
-  void BeforeThreadedGenerateData(void) ITK_OVERRIDE;
+  void BeforeThreadedGenerateData(void) override;
 
-  void ThreadedGenerateData(const RegionType & outputRegionForThread, ThreadIdType threadId) ITK_OVERRIDE;
+  void ThreadedGenerateData(const RegionType & outputRegionForThread, ThreadIdType threadId) override;
 
 private:
   SLICSuperVoxelImageFilter(const Self &); //purposely not
@@ -90,7 +90,7 @@ private:
   std::vector<ClusterVector> m_PerThreadClusters;
 
   // Barrier for threading 
-  typename Barrier::Pointer m_Barrier;
+  //typename Barrier::Pointer m_Barrier;
 
   // Search region size
   SizeType m_SearchRegionSize;

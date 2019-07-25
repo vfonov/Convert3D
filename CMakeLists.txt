@@ -1,7 +1,24 @@
+set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
+find_program(CCACHE_FOUND ccache)
+if(CCACHE_FOUND)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${CCACHE_FOUND})
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK    ${CCACHE_FOUND})
+endif(CCACHE_FOUND)
+set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
+find_program(CCACHE_FOUND ccache)
+if(CCACHE_FOUND)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${CCACHE_FOUND})
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK    ${CCACHE_FOUND})
+endif(CCACHE_FOUND)
+set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
+find_program(CCACHE_FOUND ccache)
+if(CCACHE_FOUND)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${CCACHE_FOUND})
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK    ${CCACHE_FOUND})
+endif(CCACHE_FOUND)
 PROJECT(CONVERT3D)
 
 # CMake compatibility code
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
 if(COMMAND cmake_policy)
   CMAKE_POLICY(SET CMP0003 NEW)
 endif(COMMAND cmake_policy)
@@ -9,6 +26,25 @@ endif(COMMAND cmake_policy)
 # Enable languages
 ENABLE_LANGUAGE(C)
 ENABLE_LANGUAGE(CXX)
+
+CMAKE_MINIMUM_REQUIRED(VERSION 3.10.2)
+
+if(CMAKE_CXX_STANDARD EQUAL "98" ) # ANTs 
+   message(FATAL_ERROR "CMAKE_CXX_STANDARD:STRING=98 is not supported in ITK version 5 and greater.")
+endif()
+
+#####
+##  Set the default target properties for ITK
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 11) # Supported values are ``11``, ``14``, and ``17``.
+endif()
+if(NOT CMAKE_CXX_STANDARD_REQUIRED)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+endif()
+if(NOT CMAKE_CXX_EXTENSIONS)
+  set(CMAKE_CXX_EXTENSIONS OFF)
+endif()
+
 
 # Option allowing to build c3d as a subproject of another project
 OPTION(CONVERT3D_BUILD_AS_SUBPROJECT "Build Convert3D as a sub-project of a larger project" OFF)

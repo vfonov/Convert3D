@@ -27,7 +27,7 @@
 #include "ThresholdImage.h"
 #include "UpdateMetadataKey.h"
 #include <set>
-#include "vnl/vnl_math.h"
+#include "itkMath.h"
 
 using namespace std;
 
@@ -44,7 +44,7 @@ SplitMultilabelImage<TPixel, VDim>
   for(ConstIterator it(img, img->GetBufferedRegion()); !it.IsAtEnd(); ++it)
     {
     double val = it.Get();
-    if(vnl_math_isfinite(val))
+    if(std::isfinite(val))
       sval.insert(val);
     }
   
