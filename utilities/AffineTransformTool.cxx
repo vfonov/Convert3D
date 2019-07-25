@@ -173,8 +173,8 @@ void irtk_read(MatrixStack &vmat, const char *fname)
     size_t i1 = (i + 1) % 3;
     size_t i2 = (i + 2) % 3;
     R[i].set_identity();
-    R[i](i1,i1) = R[i](i2,i2) = cos(r[i] * vnl_math::pi / 180.0);
-    R[i](i1,i2) = sin(r[i] * vnl_math::pi / 180.0);
+    R[i](i1,i1) = R[i](i2,i2) = cos(r[i] * itk::Math::pi / 180.0);
+    R[i](i1,i2) = sin(r[i] * itk::Math::pi / 180.0);
     R[i](i2,i1) = -R[i](i1,i2);
     }
 
@@ -190,9 +190,9 @@ void irtk_read(MatrixStack &vmat, const char *fname)
 
   // Create the skew matrix
   K.set_identity();
-  K(0,1) = tan(k[0] * vnl_math::pi / 180.0);
-  K(1,2) = tan(k[1] * vnl_math::pi / 180.0);
-  K(0,2) = tan(k[2] * vnl_math::pi / 180.0);
+  K(0,1) = tan(k[0] * itk::Math::pi / 180.0);
+  K(1,2) = tan(k[1] * itk::Math::pi / 180.0);
+  K(0,2) = tan(k[2] * itk::Math::pi / 180.0);
 
   // Compute the total matrix
   MatrixType M = T * R[0] * R[1] * R[2] * K * S;
@@ -236,9 +236,9 @@ void quart_print(MatrixType &mat )
 
   double r[3], s[3], k[3];
   // Get the rotation angles
-  r[0] = atan2(m(1,2), m(2,2)) * 180. / vnl_math::pi;
-  r[1] = asin(-m(0,2)) * 180. / vnl_math::pi;
-  r[2] = atan2(m(0,1), m(0,0)) * 180. / vnl_math::pi;
+  r[0] = atan2(m(1,2), m(2,2)) * 180. / itk::Math::pi;
+  r[1] = asin(-m(0,2)) * 180. / itk::Math::pi;
+  r[2] = atan2(m(0,1), m(0,0)) * 180. / itk::Math::pi;
    
   // Get the scales
   for(size_t i = 0; i < 3; i++)
@@ -250,9 +250,9 @@ void quart_print(MatrixType &mat )
     Sinv(i,i) = 1.0 / R(i,i);
   vnl_matrix_fixed<double, 3, 3> K = R * Sinv;
 
-  k[0] = atan(K(0,1)) * 180. / vnl_math::pi;
-  k[1] = atan(K(1,2)) * 180. / vnl_math::pi;
-  k[2] = atan(K(0,2)) * 180. / vnl_math::pi;
+  k[0] = atan(K(0,1)) * 180. / itk::Math::pi;
+  k[1] = atan(K(1,2)) * 180. / itk::Math::pi;
+  k[2] = atan(K(0,2)) * 180. / itk::Math::pi;
   
   printf("Affine parameters:  T=(%f, %f, %f); R = (%f, %f, %f); S = (%f, %f, %f); K = (%f, %f, %f)\n",
           mat(0,3), mat(1,3), mat(2,3), r[0], r[1], r[2], s[0], s[1], s[2], k[0], k[1], k[2]);
@@ -314,7 +314,7 @@ void quart_print(MatrixType &mat )
   printf("%12.5f   %12.5f   %12.5f  %12.5f\n", m_X, m_Y, m_Z, m_W);
 
   double L = vcl_sqrt( m_X*m_X + m_Y*m_Y + m_Z*m_Z );
-  double angle = (180.0/vnl_math::pi) * 2.0 * asin( L );
+  double angle = (180.0/itk::Math::pi) * 2.0 * asin( L );
   double axis[3];
   axis[0] = m_X/L;
   axis[1] = m_Y/L;
@@ -360,9 +360,9 @@ void irtk_write(MatrixStack &vmat, const char *fname)
   R = F * R;
 
   // Get the rotation angles
-  r[0] = atan2(Q(1,2), Q(2,2)) * 180. / vnl_math::pi;
-  r[1] = asin(-Q(0,2)) * 180. / vnl_math::pi;
-  r[2] = atan2(Q(0,1), Q(0,0)) * 180. / vnl_math::pi;
+  r[0] = atan2(Q(1,2), Q(2,2)) * 180. / itk::Math::pi;
+  r[1] = asin(-Q(0,2)) * 180. / itk::Math::pi;
+  r[2] = atan2(Q(0,1), Q(0,0)) * 180. / itk::Math::pi;
   
   // Get the scales
   for(size_t i = 0; i < 3; i++)
@@ -374,9 +374,9 @@ void irtk_write(MatrixStack &vmat, const char *fname)
     Sinv(i,i) = 1.0 / R(i,i);
   Mat33 K = R * Sinv;
 
-  k[0] = atan(K(0,1)) * 180. / vnl_math::pi;
-  k[1] = atan(K(1,2)) * 180. / vnl_math::pi;
-  k[2] = atan(K(0,2)) * 180. / vnl_math::pi;
+  k[0] = atan(K(0,1)) * 180. / itk::Math::pi;
+  k[1] = atan(K(1,2)) * 180. / itk::Math::pi;
+  k[2] = atan(K(0,2)) * 180. / itk::Math::pi;
 
 
   // Print the transformation parameters
@@ -554,7 +554,7 @@ void make_rotation(MatrixStack &vmat, double theta, Vec3 v)
   v.normalize();
 
   // Convert the angle to radians
-  double theta_rad = theta * vnl_math::pi / 180;
+  double theta_rad = theta * itk::Math::pi / 180;
 
   // Compute the skew-symmetric matrix
   Mat3 S; S.fill(0.0);
