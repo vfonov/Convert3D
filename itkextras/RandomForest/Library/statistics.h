@@ -8,7 +8,7 @@
 #define _USE_MATH_DEFINES
 
 #include <vector>
-#include <math.h>
+#include <cmath>
 #include "data.h"
 #include "linearalgebra.h"
 

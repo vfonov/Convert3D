@@ -119,8 +119,8 @@ website:http://www.adastral.ucl.ac.uk/~vladkolm/software.html
 #include "energy.h"
 #include "graph.h"
 #include <memory.h>
-#include <stdio.h>
-#include <limits.h>
+#include <cstdio>
+#include <climits>
 
 #ifdef _MSC_EXTENSIONS
 #define OLGA_INLINE __forceinline

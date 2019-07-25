@@ -122,7 +122,7 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
-#include <time.h>
+#include <ctime>
 
 // Support for regular expressions via KWSYS in ITK
 #include <itksys/RegularExpression.hxx>

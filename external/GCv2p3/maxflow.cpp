@@ -1,7 +1,7 @@
 /* maxflow.cpp */
 
 
-#include <stdio.h>
+#include <cstdio>
 #include "graph.h"
 
 

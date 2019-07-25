@@ -23,7 +23,7 @@
 #include <iomanip>
 #include <list>
 #include <string>
-#include <math.h>
+#include <cmath>
 
 using namespace std;
 

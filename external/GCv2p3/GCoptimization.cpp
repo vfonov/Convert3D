@@ -1,8 +1,8 @@
 #include "GCoptimization.h"
 #include "LinkedBlockList.h"
-#include <stdio.h>
-#include <time.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <ctime>
+#include <cstdlib>
 
 // will leave this one just for the laughs :)
 //#define olga_assert(expr) assert(!(expr))

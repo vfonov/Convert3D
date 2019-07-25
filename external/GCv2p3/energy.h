@@ -34,7 +34,7 @@
 
 	///////////////////////////////////////////////////
 
-	#include <stdio.h>
+	#include <cstdio>
 	#include "energy.h"
 
 	void main()
@@ -73,7 +73,7 @@
 #ifndef __ENERGY_H__
 #define __ENERGY_H__
 
-#include <assert.h>
+#include <cassert>
 #include "graph.h"
 
 template <typename captype, typename tcaptype, typename flowtype>

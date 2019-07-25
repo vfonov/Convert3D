@@ -26,7 +26,7 @@
 #include <map>
 #include "itkImageIOBase.h"
 #include "itkSpatialOrientation.h"
-#include <stdio.h>
+#include <cstdio>
 
 namespace itk
 {

@@ -27,17 +27,17 @@
 #define _XOPEN_SOURCE 600 /* _setjmp(3), _longjmp(3), getopt(3) */
 #endif
 
-#include <limits.h> /* INT_MAX */
+#include <climits> /* INT_MAX */
 
-#include <stdint.h> /* int64_t */
-#include <stdio.h>  /* FILE fprintf(3) snprintf(3) */
-#include <stdlib.h> /* malloc(3) realloc(3) free(3) abort(3) */
+#include <cstdint> /* int64_t */
+#include <cstdio>  /* FILE fprintf(3) snprintf(3) */
+#include <cstdlib> /* malloc(3) realloc(3) free(3) abort(3) */
 
-#include <string.h> /* memset(3) memmove(3) */
+#include <cstring> /* memset(3) memmove(3) */
 
-#include <errno.h>  /* ERANGE errno */
+#include <cerrno>  /* ERANGE errno */
 
-#include <setjmp.h> /* _setjmp(3) _longjmp(3) */
+#include <csetjmp> /* _setjmp(3) _longjmp(3) */
 
 #include "hexdump.h"
 
@@ -1860,16 +1860,16 @@ int luaopen_hexdump() {
 
 #if HEXDUMP_MAIN
 
-#include <stdio.h>  /* FILE stdout stderr stdin fprintf(3) */
+#include <cstdio>  /* FILE stdout stderr stdin fprintf(3) */
 
-#include <string.h> /* strcmp(3) */
+#include <cstring> /* strcmp(3) */
 
 
 #ifndef _WIN32
 #include <unistd.h> /* getopt(3) */
 #include <err.h>    /* err(3) errx(3) */
 #else
-#include <stdarg.h>
+#include <cstdarg>
 
 static void err(int eval, const char *fmt, ...) {
 	int error = errno;

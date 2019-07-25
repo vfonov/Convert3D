@@ -5,7 +5,7 @@
 #include <sstream>
 #include <iterator>
 #include <algorithm>
-#include <time.h>
+#include <ctime>
 // #include "omp.h"
 #include "data.h"
 
