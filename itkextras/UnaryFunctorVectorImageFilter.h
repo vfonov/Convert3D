@@ -92,11 +92,11 @@ protected:
   UnaryFunctorVectorImageFilter();
   ~UnaryFunctorVectorImageFilter() {}
 
-  void GenerateOutputInformation() ITK_OVERRIDE;
+  void GenerateOutputInformation() override;
   
   void ThreadedGenerateData(
     const OutputImageRegionType & outputRegionForThread,
-    itk::ThreadIdType threadId) ITK_OVERRIDE;
+    itk::ThreadIdType threadId) override;
 
 private:
   UnaryFunctorVectorImageFilter(const Self &);  //purposely not implemented

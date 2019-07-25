@@ -161,7 +161,7 @@ public:
    * best response */
   const ScalesImageType * GetScalesOutput() const;
 
-  void EnlargeOutputRequestedRegion(DataObject *) ITK_OVERRIDE;
+  void EnlargeOutputRequestedRegion(DataObject *) override;
 
   /** Methods to turn on/off flag to generate an image with scale values at
    *  each pixel for the best vesselness response */
@@ -178,15 +178,15 @@ public:
   /** This is overloaded to create the Scales and Hessian output images */
   typedef ProcessObject::DataObjectPointerArraySizeType DataObjectPointerArraySizeType;
   using Superclass::MakeOutput;
-  virtual DataObjectPointer MakeOutput(DataObjectPointerArraySizeType idx) ITK_OVERRIDE;
+  virtual DataObjectPointer MakeOutput(DataObjectPointerArraySizeType idx) override;
 
 protected:
   MultiScaleHessianBasedMeasureImageFilter();
   ~MultiScaleHessianBasedMeasureImageFilter() {}
-  void PrintSelf(std::ostream & os, Indent indent) const ITK_OVERRIDE;
+  void PrintSelf(std::ostream & os, Indent indent) const override;
 
   /** Generate Data */
-  void GenerateData(void) ITK_OVERRIDE;
+  void GenerateData(void) override;
 
 private:
   void UpdateMaximumResponse(double sigma);
