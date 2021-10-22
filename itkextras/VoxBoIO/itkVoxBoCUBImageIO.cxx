@@ -16,7 +16,13 @@
 =========================================================================*/
 #include "itkVoxBoCUBImageIO.h"
 #include "itkIOCommon.h"
+
+#if ITK_VERSION_MAJOR > 4
+#include "itkMacro.h"
+#else
 #include "itkExceptionObject.h"
+#endif
+
 #include "itkMetaDataObject.h"
 #include "itkByteSwapper.h"
 #include <iostream>
