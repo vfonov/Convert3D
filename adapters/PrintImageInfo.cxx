@@ -192,12 +192,12 @@ PrintImageInfo<TPixel, VDim>
     cout << "  Mean Intensity     : " << iMean << endl;
     cout << "  Canon. Orientation : " << GetRAICodeFromDirectionMatrix(image->GetDirection().GetVnlMatrix()) << endl;
     cout << "  Direction Cos Mtx. : " << endl;
-    c->PrintMatrix(cout, image->GetDirection().GetVnlMatrix());
+    c->PrintMatrix(cout, image->GetDirection().GetVnlMatrix().as_ref());
 
     // Print NIFTI s-form matrix (check against freesurfer's MRIinfo)
     cout << "  Voxel->RAS x-form  : " << endl;
     c->PrintMatrix(cout, 
-      image->GetVoxelSpaceToRASPhysicalSpaceMatrix().GetVnlMatrix(), "%12.5f ", "    ");
+      image->GetVoxelSpaceToRASPhysicalSpaceMatrix().GetVnlMatrix().as_ref(), "%12.5f ", "    ");
 
     //
     // Print metadata
@@ -209,7 +209,7 @@ PrintImageInfo<TPixel, VDim>
       // Get the metadata as a generic object
       string key = itMeta->first, v_string;
       itk::SpatialOrientation::ValidCoordinateOrientationFlags v_oflags = 
-        itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_INVALID;
+        itk::SpatialOrientation::ValidCoordinateOrientationFlags::ITK_COORDINATE_ORIENTATION_INVALID;
 
       if(itk::ExposeMetaData<string>(mdd, key, v_string))
         {

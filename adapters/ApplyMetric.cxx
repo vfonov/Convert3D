@@ -270,8 +270,8 @@ ApplyMetric<TPixel, VDim>
 {
 //  c3d_affine_tool -sform $TP1 -sform $TP0 -inv -mult -sqrt -sform $TP0 -mult -o $WDIR/hwspace.mat
 
-  MatrixType mfixed  = fixed->GetVoxelSpaceToRASPhysicalSpaceMatrix().GetVnlMatrix();
-  MatrixType mmoving = moving->GetVoxelSpaceToRASPhysicalSpaceMatrix().GetVnlMatrix();
+  MatrixType mfixed  = fixed->GetVoxelSpaceToRASPhysicalSpaceMatrix().GetVnlMatrix().as_matrix();
+  MatrixType mmoving = moving->GetVoxelSpaceToRASPhysicalSpaceMatrix().GetVnlMatrix().as_matrix();
   
   MatrixType mcomb = mmoving * vnl_matrix_inverse<double>(mfixed);
   // Peform Denman-Beavers iteration

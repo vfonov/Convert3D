@@ -29,20 +29,20 @@ ENABLE_LANGUAGE(CXX)
 
 CMAKE_MINIMUM_REQUIRED(VERSION 3.10.2)
 
-if(CMAKE_CXX_STANDARD EQUAL "98" ) # ANTs 
-   message(FATAL_ERROR "CMAKE_CXX_STANDARD:STRING=98 is not supported in ITK version 5 and greater.")
-endif()
-
 #####
 ##  Set the default target properties for ITK
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 11) # Supported values are ``11``, ``14``, and ``17``.
+  set(CMAKE_CXX_STANDARD 17) # Supported values are ``11``, ``14``, and ``17``.
 endif()
 if(NOT CMAKE_CXX_STANDARD_REQUIRED)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 if(NOT CMAKE_CXX_EXTENSIONS)
   set(CMAKE_CXX_EXTENSIONS OFF)
+endif()
+
+if(CMAKE_CXX_STANDARD EQUAL "98" OR CMAKE_CXX_STANDARD LESS "17")
+   message(FATAL_ERROR "C++98 to C++14 are no longer supported in ITK version 5.3 and greater.")
 endif()
 
 
