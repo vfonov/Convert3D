@@ -305,7 +305,9 @@ OneDimensionalInPlaceAccumulateFilterWorker<TPixel, TInputImage>
 }
 
 
+#if defined(__i386__) || defined(__x86_64__)
 #define _NCC_SSE_
+#endif
 #ifdef _NCC_SSE_
 
 #include <xmmintrin.h>
