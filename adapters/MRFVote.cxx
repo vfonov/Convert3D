@@ -31,6 +31,9 @@
 
 #include "GCoptimization.h"
 
+#include <algorithm>
+#include <random>
+
 /**
  * Functor for computing the mask
  */
@@ -220,7 +223,8 @@ MRFVote<TPixel, VDim>
   for(int iter = 0; iter < 20; iter++)
     {
     // Perform expansion in random order
-    std::random_shuffle(labels.begin(), labels.end());
+    static std::mt19937 rng(std::random_device{}());
+    std::shuffle(labels.begin(), labels.end(), rng);
 
     // Perform alpha-expansion for each label
     for(int i = 0; i < labels.size(); i++)
